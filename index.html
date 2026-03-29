@@ -49,11 +49,13 @@
     .rider-card{background:var(--bg);border:1px solid var(--border);border-radius:11px;padding:12px 14px;margin-bottom:8px;cursor:pointer;transition:all .25s}
     .rider-card:hover{border-color:rgba(0,255,136,.4);background:var(--card-h)}
     .rider-card.me{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent-dim)}
-    .rider-card.inactivo{opacity:.5}
+    .rider-card.inactivo{opacity:.65}
+    .rider-card.offline{opacity:.4}
     .sdot{width:7px;height:7px;border-radius:50%;display:inline-block;flex-shrink:0}
     .sdot.on{background:var(--accent);box-shadow:0 0 6px var(--accent)}
     .sdot.off{background:var(--muted)}
     .sdot.mov{background:var(--accent);box-shadow:0 0 6px var(--accent);animation:pls 1.5s infinite}
+    .sdot.warn{background:var(--warning);box-shadow:0 0 4px var(--warning)}
     @keyframes pls{0%,100%{opacity:1}50%{opacity:.4}}
     .cm{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;color:#0a0e17;border:2.5px solid rgba(255,255,255,.2);box-shadow:0 3px 14px rgba(0,0,0,.5)}
     .cm.me{background:var(--accent)!important;animation:mp 2s infinite}
@@ -80,8 +82,8 @@
     .empty-st{text-align:center;padding:40px 16px;color:var(--muted)}
     .empty-st i{font-size:40px;margin-bottom:14px;opacity:.3}
     .empty-st p{font-size:13px;line-height:1.6}
-    .toast-c{position:fixed;top:72px;right:20px;z-index:2000;display:flex;flex-direction:column;gap:8px}
-    .toast{background:var(--card);border:1px solid var(--border);border-radius:11px;padding:12px 18px;display:flex;align-items:center;gap:10px;min-width:280px;animation:tI .4s cubic-bezier(.16,1,.3,1);box-shadow:0 8px 30px rgba(0,0,0,.35)}
+    .toast-c{position:fixed;top:72px;right:20px;z-index:2000;display:flex;flex-direction:column;gap:8px;pointer-events:none}
+    .toast{background:var(--card);border:1px solid var(--border);border-radius:11px;padding:12px 18px;display:flex;align-items:center;gap:10px;min-width:280px;max-width:420px;animation:tI .4s cubic-bezier(.16,1,.3,1);box-shadow:0 8px 30px rgba(0,0,0,.35);pointer-events:auto}
     .toast.success{border-left:3px solid var(--accent)}.toast.error{border-left:3px solid var(--danger)}.toast.warning{border-left:3px solid var(--warning)}.toast.info{border-left:3px solid var(--info)}
     .toast.out{animation:tO .3s ease forwards}
     @keyframes tI{from{transform:translateX(120%);opacity:0}to{transform:translateX(0);opacity:1}}
@@ -95,6 +97,9 @@
     .leaflet-control-attribution a{color:var(--accent)!important}
     .ct{background:var(--card)!important;border:1px solid var(--border)!important;color:var(--fg)!important;border-radius:8px!important;padding:5px 11px!important;font-family:'Space Grotesk',sans-serif!important;font-size:12px!important;font-weight:500!important;box-shadow:0 4px 12px rgba(0,0,0,.3)!important}
     .ct::before{border-top-color:var(--border)!important}
+    .perm-banner{background:rgba(255,59,92,.08);border:1px solid rgba(255,59,92,.25);border-radius:9px;padding:10px 14px;margin-bottom:12px;font-size:11px;color:var(--danger);line-height:1.5;display:none}
+    .perm-banner.show{display:block}
+    .perm-banner code{background:rgba(255,59,92,.12);padding:1px 5px;border-radius:4px;font-family:'JetBrains Mono',monospace;font-size:10px}
     @media(max-width:768px){
       .app-layout{grid-template-columns:1fr;grid-template-rows:56px 1fr 190px}
       .sidebar{order:3;border-right:none;border-top:1px solid var(--border)}
@@ -172,6 +177,13 @@
     </header>
 
     <aside class="sidebar">
+      <!-- Banner de error de permisos Firebase -->
+      <div class="perm-banner" id="permBanner">
+        <i class="fas fa-exclamation-triangle" style="margin-right:5px"></i>
+        Firebase deniega acceso. Ve a <strong>Console &gt; Realtime Database &gt; Reglas</strong> y pega:<br>
+        <code>{"rules":{".read":true,".write":true}}</code>
+      </div>
+
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:18px">
         <div class="st-c"><div class="st-v" id="sRiders">0</div><div class="st-l">Riders activos</div></div>
         <div class="st-c"><div class="st-v" id="sSpeed">0</div><div class="st-l">km/h</div></div>
@@ -185,7 +197,9 @@
           <button onclick="limpiarRuta()" class="btn-sm" title="Limpiar mi ruta"><i class="fas fa-eraser"></i></button>
         </div>
       </div>
-      <div id="riderList"></div>
+      <div id="riderList">
+        <div class="empty-st"><i class="fas fa-satellite-dish"></i><p>Esperando datos de Firebase...</p></div>
+      </div>
     </aside>
 
     <main class="map-container">
@@ -220,22 +234,23 @@
 
   <script>
     /* ==========================================================
-       TOAST
+       TOAST — Notificaciones no intrusivas
     ========================================================== */
-    function toast(msg, type) {
+    function toast(msg, type, duration) {
       type = type || 'info';
+      duration = duration || 4000;
       var c = document.getElementById('toastBox');
       var t = document.createElement('div');
       t.className = 'toast ' + type;
       var icons = {success:'fa-check-circle',error:'fa-times-circle',warning:'fa-exclamation-triangle',info:'fa-info-circle'};
       var colors = {success:'var(--accent)',error:'var(--danger)',warning:'var(--warning)',info:'var(--info)'};
-      t.innerHTML = '<i class="fas '+icons[type]+'" style="color:'+colors[type]+';font-size:16px;flex-shrink:0"></i><span style="font-size:13px">'+msg+'</span>';
+      t.innerHTML = '<i class="fas '+icons[type]+'" style="color:'+colors[type]+';font-size:16px;flex-shrink:0"></i><span style="font-size:13px;line-height:1.4">'+msg+'</span>';
       c.appendChild(t);
-      setTimeout(function(){t.classList.add('out');setTimeout(function(){t.remove()},300)},3500);
+      setTimeout(function(){t.classList.add('out');setTimeout(function(){if(t.parentNode)t.remove()},300)},duration);
     }
 
     /* ==========================================================
-       SEED + MIGRACION (localStorage para credenciales de login)
+       SEED + MIGRACION (localStorage para credenciales)
     ========================================================== */
     function seedAdmin() {
       try {
@@ -246,7 +261,6 @@
           return;
         }
         var datos = JSON.parse(raw);
-        /* Migrar de formato objeto viejo a array */
         if (datos !== null && typeof datos === 'object' && !Array.isArray(datos)) {
           var migrado = [];
           var claves = Object.keys(datos);
@@ -279,34 +293,94 @@
     function clearSession() { localStorage.removeItem("rt_session"); }
 
     /* ==========================================================
-       FIREBASE INIT — Tus credenciales reales
+       FIREBASE INIT — Sin barra final en databaseURL
     ========================================================== */
     var firebaseConfig = {
       apiKey: "AIzaSyAov1tlSvMc8VNfwKbYLDgNftDLUK390Tw",
       authDomain: "mapa-c26d7.firebaseapp.com",
-      databaseURL: "https://mapa-c26d7-default-rtdb.firebaseio.com/",
+      databaseURL: "https://mapa-c26d7-default-rtdb.firebaseio.com",
       projectId: "mapa-c26d7",
       storageBucket: "mapa-c26d7.appspot.com",
       messagingSenderId: "731287849216",
       appId: "1:731287849216:web:b24c8cbc0b9aa609a04be5"
     };
-    firebase.initializeApp(firebaseConfig);
-    var db = firebase.database();
 
-    /* Verificar conexion a Firebase */
+    var fbInitOk = false;
+    try {
+      firebase.initializeApp(firebaseConfig);
+      fbInitOk = true;
+    } catch(e) {
+      console.error("Error inicializando Firebase:", e);
+    }
+
+    var db = null;
     var fbConnected = false;
-    db.ref(".info/connected").on("value", function(snap) {
-      fbConnected = snap.val() === true;
+    var fbPermOk = null; /* null = no verificado, true = ok, false = denegado */
+
+    if (fbInitOk) {
+      try {
+        db = firebase.database();
+
+        /* Verificar conexion en tiempo real */
+        db.ref(".info/connected").on("value", function(snap) {
+          fbConnected = snap.val() === true;
+          actualizarIndicadorFirebase();
+        });
+      } catch(e2) {
+        console.error("Error accediendo a Firebase Database:", e2);
+        fbInitOk = false;
+      }
+    }
+
+    function actualizarIndicadorFirebase() {
       var dot = document.getElementById("fbDot");
       var txt = document.getElementById("fbStatus");
-      if (fbConnected) {
-        dot.classList.remove("err");
-        txt.textContent = "Firebase: Conectado";
-      } else {
+      if (!dot || !txt) return;
+      if (!fbInitOk) {
+        dot.classList.add("err");
+        txt.textContent = "Firebase: Error";
+      } else if (!fbConnected) {
         dot.classList.add("err");
         txt.textContent = "Firebase: Desconectado";
+      } else if (fbPermOk === false) {
+        dot.classList.add("err");
+        txt.textContent = "Firebase: Sin permisos";
+      } else {
+        dot.classList.remove("err");
+        txt.textContent = "Firebase: Conectado";
       }
-    });
+    }
+
+    /* Verificacion de permisos: intentar escribir/leer un valor de prueba */
+    function verificarPermisosFirebase() {
+      if (!db) {
+        fbPermOk = false;
+        mostrarBannerPermisos();
+        return;
+      }
+      var testRef = db.ref("_connection_test_" + Date.now());
+      testRef.set({t: 1}).then(function() {
+        testRef.remove();
+        fbPermOk = true;
+        actualizarIndicadorFirebase();
+        toast("Firebase conectado y con permisos correctos", "success");
+      }).catch(function(err) {
+        fbPermOk = false;
+        actualizarIndicadorFirebase();
+        console.error("Error de permisos Firebase:", err);
+        if (err.code === "PERMISSION_DENIED") {
+          mostrarBannerPermisos();
+          toast("Firebase deniega acceso. Revisa las reglas en la consola.", "error", 8000);
+        } else {
+          toast("Error Firebase: " + (err.message || err.code || "desconocido"), "error", 6000);
+        }
+      });
+    }
+
+    function mostrarBannerPermisos() {
+      var b = document.getElementById("permBanner");
+      if (b) b.classList.add("show");
+    }
 
     /* ==========================================================
        PALETA DE COLORES PARA RIDERS
@@ -334,8 +408,10 @@
     var lastGPSPos = null;
     var mapCentered = false;
     var miRuta = [];
-    var rutaInicializada = false;
+    var lastRutaWrite = 0; /* Timestamp de ultima escritura de ruta */
     var session = null;
+    var firebaseDataReceived = false; /* Flag: ha llegado al menos 1 dato de Firebase? */
+    var renderPending = false; /* Para debounce con requestAnimationFrame */
 
     /* ==========================================================
        HAVERSINE
@@ -345,6 +421,21 @@
       var dLat = (lat2-lat1)*Math.PI/180, dLon = (lon2-lon1)*Math.PI/180;
       var a = Math.sin(dLat/2)*Math.sin(dLat/2)+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)*Math.sin(dLon/2);
       return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+    }
+
+    /* ==========================================================
+       INICIAR APLICACION (despues de login o auto-login)
+    ========================================================== */
+    function iniciarApp() {
+      document.getElementById('topUser').textContent = session.nombre;
+      if (session.role === 'admin') document.getElementById('adminBtn').style.display = 'block';
+      initMap();
+      iniciarGPS();
+      iniciarFirebaseListener();
+      iniciarClock();
+      /* Verificar permisos Firebase tras 2 segundos de espera */
+      setTimeout(verificarPermisosFirebase, 2000);
+      toast('Bienvenido, ' + session.nombre, 'success');
     }
 
     /* ==========================================================
@@ -369,13 +460,7 @@
         setTimeout(function() {
           ls.style.display = 'none';
           document.getElementById('appLayout').classList.add('active');
-          document.getElementById('topUser').textContent = user.nombre;
-          if (user.role === 'admin') document.getElementById('adminBtn').style.display = 'block';
-          initMap();
-          iniciarGPS();
-          iniciarFirebaseListener();
-          iniciarClock();
-          toast('Bienvenido, ' + user.nombre, 'success');
+          iniciarApp();
         }, 450);
       } else {
         errEl.classList.add('show');
@@ -393,31 +478,65 @@
     }
 
     function handleLogout() {
-      if (session) {
-        /* Eliminar datos del rider de Firebase al cerrar sesion */
+      /* Eliminar datos del rider de Firebase */
+      if (session && db) {
         db.ref("riders/" + session.usuario).remove(function(err) {
           if (err) console.warn("Error al eliminar de Firebase:", err);
         });
       }
       clearSession();
-      if (watchId) { navigator.geolocation.clearWatch(watchId); watchId = null; }
-      if (clockInterval) { clearInterval(clockInterval); clockInterval = null; }
-      if (gpsTimeout) { clearTimeout(gpsTimeout); gpsTimeout = null; }
-      if (firebaseListener) { db.ref("riders").off("value", firebaseListener); firebaseListener = null; }
-      for (var id in markers) { if (markers[id]) map.removeLayer(markers[id]); }
-      for (var id2 in rutas) { if (rutas[id2]) map.removeLayer(rutas[id2]); }
-      markers = {}; rutas = {}; map = null; mapCentered = false;
-      totalDist = 0; lastGPSPos = null; miRuta = []; rutaInicializada = false; startTime = Date.now(); session = null;
+      detenerTodo();
       document.getElementById('appLayout').classList.remove('active');
       var ls = document.getElementById('loginScreen');
       ls.style.display = 'flex'; ls.style.opacity = '1';
       document.getElementById('loginPass').value = '';
       document.getElementById('adminBtn').style.display = 'none';
+      document.getElementById('permBanner').classList.remove('show');
+      firebaseDataReceived = false;
       toast('Sesion cerrada', 'info');
     }
 
+    /* Detener todos los servicios activos */
+    function detenerTodo() {
+      if (watchId) { navigator.geolocation.clearWatch(watchId); watchId = null; }
+      if (clockInterval) { clearInterval(clockInterval); clockInterval = null; }
+      if (gpsTimeout) { clearTimeout(gpsTimeout); gpsTimeout = null; }
+      if (firebaseListener && db) { db.ref("riders").off("value", firebaseListener); firebaseListener = null; }
+      if (map) {
+        for (var id in markers) { if (markers[id]) map.removeLayer(markers[id]); }
+        for (var id2 in rutas) { if (rutas[id2]) map.removeLayer(rutas[id2]); }
+      }
+      markers = {}; rutas = {}; map = null; mapCentered = false;
+      totalDist = 0; lastGPSPos = null; miRuta = []; lastRutaWrite = 0; session = null;
+      document.getElementById('riderList').innerHTML = '';
+    }
+
     document.getElementById('loginUser').addEventListener('keydown', function(e){if(e.key==='Enter')document.getElementById('loginPass').focus()});
-    window.addEventListener('load', function(){document.getElementById('loginUser').focus()});
+
+    /* ==========================================================
+       AUTO-LOGIN: Si hay sesion guardada, saltar login
+    ========================================================== */
+    window.addEventListener('load', function() {
+      var s = getSession();
+      if (s) {
+        /* Validar que el usuario aun existe en la lista */
+        var usuarios = getUsuarios();
+        var valido = false;
+        for (var i = 0; i < usuarios.length; i++) {
+          if (usuarios[i].usuario === s.usuario) { valido = true; break; }
+        }
+        if (valido) {
+          session = s;
+          document.getElementById('loginScreen').style.display = 'none';
+          document.getElementById('appLayout').classList.add('active');
+          iniciarApp();
+          return;
+        } else {
+          clearSession();
+        }
+      }
+      document.getElementById('loginUser').focus();
+    });
 
     /* ==========================================================
        MAPA (Leaflet + CartoDB Dark)
@@ -428,15 +547,17 @@
         attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',
         subdomains:'abcd',maxZoom:20
       }).addTo(map);
-      setTimeout(function(){map.invalidateSize()},150);
+      setTimeout(function(){map.invalidateSize()},200);
       window.addEventListener('resize',function(){if(map)map.invalidateSize()});
     }
 
     /* ==========================================================
-       GPS TRACKING → Escribe a Firebase
-       CLAVE: Cada actualizacion GPS escribe la posicion
-       del usuario logueado a Firebase en tiempo real
+       GPS TRACKING → Escribe a Firebase de forma optimizada
+       - Posicion: cada actualizacion GPS (ligera con update)
+       - Ruta: cada 8 segundos o cada 5 puntos nuevos
     ========================================================== */
+    var rutaInitPromise = null;
+
     function iniciarGPS() {
       if (!navigator.geolocation) {
         toast('Tu navegador no soporta geolocalizacion','error');
@@ -447,7 +568,7 @@
 
       gpsTimeout = setTimeout(function(){
         document.getElementById('gpsTxt').textContent = 'GPS: Sin senal';
-        toast('No se obtuvo senal GPS','warning');
+        toast('No se obtuvo senal GPS tras 15s. Verifica permisos.','warning');
       },15000);
 
       watchId = navigator.geolocation.watchPosition(
@@ -464,7 +585,7 @@
             if (d > 0.005) totalDist += d;
           }
           lastGPSPos = {lat:lat,lng:lng};
-          var skmh = (speed !== null) ? (speed*3.6).toFixed(0) : '0';
+          var skmh = (speed !== null && speed >= 0) ? (speed*3.6).toFixed(0) : '0';
           document.getElementById('sSpeed').textContent = skmh;
           document.getElementById('sDist').textContent = totalDist.toFixed(2);
           document.getElementById('coordTxt').textContent = lat.toFixed(5)+', '+lng.toFixed(5);
@@ -476,53 +597,116 @@
 
           if (!mapCentered) { map.setView([lat,lng],16); mapCentered=true; }
 
-          /* ============================================
-             ESCRIBIR A FIREBASE
-             La primera vez carga la ruta existente,
-             luego agrega el nuevo punto
-          ============================================ */
-          if (!rutaInicializada) {
-            rutaInicializada = true;
-            db.ref("riders/" + session.usuario).once("value").then(function(snap) {
+          /* Agregar punto a ruta local */
+          miRuta.push({lat:lat,lng:lng,time:Date.now()});
+          if (miRuta.length > 500) miRuta = miRuta.slice(-500);
+
+          /* Inicializar ruta desde Firebase si es la primera vez (Promise para evitar race condition) */
+          if (!rutaInitPromise && db) {
+            rutaInitPromise = db.ref("riders/" + session.usuario).once("value").then(function(snap) {
               var data = snap.val();
               if (data && data.ruta && Array.isArray(data.ruta)) {
-                miRuta = data.ruta.slice(-300);
+                /* Fusionar ruta previa con la nueva, evitando duplicados */
+                var previa = data.ruta.slice(-300);
+                if (previa.length > 0 && miRuta.length > 1) {
+                  miRuta = previa.concat(miRuta.slice(1));
+                } else {
+                  miRuta = previa.concat(miRuta);
+                }
+                if (miRuta.length > 500) miRuta = miRuta.slice(-500);
               }
-              escribirFirebase(lat, lng, speed);
             }).catch(function(err) {
-              console.warn("Error cargando ruta previa:", err);
-              escribirFirebase(lat, lng, speed);
+              console.warn("Error cargando ruta previa (continuando sin ella):", err);
+            });
+          }
+
+          /* Escribir a Firebase: posicion inmediata, ruta throttled */
+          if (rutaInitPromise) {
+            rutaInitPromise.then(function() {
+              escribirPosicionFirebase(lat, lng, speed);
+              escribirRutaFirebase();
             });
           } else {
-            escribirFirebase(lat, lng, speed);
+            escribirPosicionFirebase(lat, lng, speed);
+            escribirRutaFirebase();
+          }
+
+          /* Fallback local: si Firebase aun no ha enviado datos, mostrar al menos mi posicion */
+          if (!firebaseDataReceived) {
+            renderFallbackLocal(lat, lng, speed);
           }
         },
         function(err) {
           if (gpsTimeout){clearTimeout(gpsTimeout);gpsTimeout=null;}
-          var msgs={1:'Permiso de ubicacion denegado',2:'Ubicacion no disponible',3:'Tiempo de espera agotado'};
-          toast(msgs[err.code]||'Error de GPS','warning');
+          var msgs={1:'Permiso de ubicacion denegado. Activalo en ajustes del navegador.',2:'Ubicacion no disponible en este dispositivo.',3:'Tiempo de espera agotado al buscar GPS.'};
+          toast(msgs[err.code]||'Error de GPS','warning',6000);
           document.getElementById('gpsTxt').textContent='GPS: Sin senal';
         },
-        {enableHighAccuracy:true,maximumAge:5000,timeout:15000}
+        {enableHighAccuracy:true,maximumAge:3000,timeout:15000}
       );
     }
 
-    /* Escribe posicion + ruta a Firebase */
-    function escribirFirebase(lat, lng, speed) {
-      miRuta.push({lat:lat,lng:lng,time:Date.now()});
-      /* Limitar ruta a ultimos 300 puntos para no saturar Firebase */
-      if (miRuta.length > 300) miRuta = miRuta.slice(-300);
-
-      db.ref("riders/" + session.usuario).set({
+    /* Escribe posicion (ligera, sin la ruta) */
+    function escribirPosicionFirebase(lat, lng, speed) {
+      if (!db || !session) return;
+      db.ref("riders/" + session.usuario).update({
         nombre: session.nombre,
         lat: lat,
         lng: lng,
-        speed: (speed !== null) ? (speed * 3.6) : null,
-        ruta: miRuta,
+        speed: (speed !== null && speed >= 0) ? (speed * 3.6) : 0,
         timestamp: Date.now()
       }).catch(function(err) {
-        console.warn("Error escribiendo Firebase:", err);
+        console.warn("Error escribiendo posicion:", err);
+        if (err.code === "PERMISSION_DENIED" && fbPermOk !== false) {
+          fbPermOk = false;
+          actualizarIndicadorFirebase();
+          mostrarBannerPermisos();
+        }
       });
+    }
+
+    /* Escribe ruta solo cada 8 segundos para no saturar Firebase */
+    function escribirRutaFirebase() {
+      if (!db || !session) return;
+      var ahora = Date.now();
+      if (ahora - lastRutaWrite < 8000) return;
+      lastRutaWrite = ahora;
+
+      var rutaParaEnviar = miRuta.slice(-300);
+      db.ref("riders/" + session.usuario + "/ruta").set(rutaParaEnviar).catch(function(err) {
+        console.warn("Error escribiendo ruta:", err);
+      });
+    }
+
+    /* Fallback local: muestra tu propia posicion en la sidebar mientras Firebase no responde */
+    function renderFallbackLocal(lat, lng, speed) {
+      if (!session) return;
+      var listaEl = document.getElementById('riderList');
+      var spd = (speed !== null && speed >= 0) ? (speed * 3.6).toFixed(0) : '--';
+      listaEl.innerHTML = '<div class="rider-card me" onclick="centerMe()">'
+        +'<div style="display:flex;align-items:center;gap:9px">'
+        +'<div style="width:30px;height:30px;background:#00ff88;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#0a0e17;flex-shrink:0">'+session.nombre.charAt(0)+'</div>'
+        +'<div style="flex:1;min-width:0">'
+        +'<div style="font-size:12px;font-weight:600;display:flex;align-items:center;gap:5px">'+session.nombre+' <span class="sdot mov"></span></div>'
+        +'<div style="font-size:10px;color:var(--muted);font-family:JetBrains Mono,monospace">'+spd+' km/h <span style="color:var(--accent);margin-left:6px">GPS Activo</span></div>'
+        +'</div>'
+        +'<span style="font-size:9px;padding:2px 7px;background:var(--accent-dim);color:var(--accent);border-radius:5px;font-weight:600;flex-shrink:0">TU</span>'
+        +'</div></div>'
+        +'<div class="empty-st" style="padding:16px"><i class="fas fa-hourglass-half" style="font-size:20px"></i><p style="font-size:11px">Esperando respuesta de Firebase para mostrar otros riders...</p></div>';
+      document.getElementById('sRiders').textContent = '1';
+
+      /* Tambien crear tu propio marcador en el mapa */
+      if (map && !markers[session.usuario]) {
+        var icon = L.divIcon({
+          className:'',
+          html:'<div class="cm me">'+session.nombre.charAt(0).toUpperCase()+'</div>',
+          iconSize:[36,36],iconAnchor:[18,18]
+        });
+        markers[session.usuario] = L.marker([lat,lng],{icon:icon}).addTo(map);
+        markers[session.usuario].bindTooltip(session.nombre,{permanent:false,direction:'top',offset:[0,-22],className:'ct'});
+      } else if (markers[session.usuario]) {
+        markers[session.usuario].setLatLng([lat,lng]);
+      }
     }
 
     /* Limpiar ruta del usuario actual */
@@ -532,80 +716,170 @@
       lastGPSPos = null;
       totalDist = 0;
       document.getElementById('sDist').textContent = '0.0';
-
-      db.ref("riders/" + session.usuario + "/ruta").set([]).catch(function(err){
-        console.warn("Error limpiando ruta:",err);
-      });
+      if (db) {
+        db.ref("riders/" + session.usuario + "/ruta").set([]).catch(function(err){
+          console.warn("Error limpiando ruta:",err);
+        });
+      }
+      /* Limpiar polyline del mapa */
+      if (rutas[session.usuario]) {
+        map.removeLayer(rutas[session.usuario]);
+        delete rutas[session.usuario];
+      }
       toast('Ruta limpiada','info');
     }
 
     /* ==========================================================
        FIREBASE LISTENER → Render en tiempo real
-       Escucha TODOS los riders y actualiza mapa + lista
+       Usa requestAnimationFrame para debounce suave
+       SIN throttle agresivo de 1 segundo
     ========================================================== */
-    var lastRenderTime = 0;
-
     function iniciarFirebaseListener() {
-      firebaseListener = function(snapshot) {
-        /* Throttle: no renderizar mas de una vez por segundo */
-        var ahora = Date.now();
-        if (ahora - lastRenderTime < 1000) return;
-        lastRenderTime = ahora;
+      if (!db) {
+        document.getElementById('riderList').innerHTML =
+          '<div class="empty-st"><i class="fas fa-exclamation-triangle" style="color:var(--danger)"></i>'
+          +'<p>Firebase no esta disponible.<br>Verifica la configuracion y las reglas de acceso.</p></div>';
+        return;
+      }
 
-        var riders = snapshot.val();
-        renderRidersDesdeFirebase(riders);
+      firebaseListener = function(snapshot) {
+        firebaseDataReceived = true;
+        /* Debounce con requestAnimationFrame: no bloquea el hilo, permite todas las actualizaciones */
+        if (renderPending) return;
+        renderPending = true;
+        requestAnimationFrame(function() {
+          renderPending = false;
+          renderRidersDesdeFirebase(snapshot.val());
+        });
       };
-      db.ref("riders").on("value", firebaseListener);
+
+      db.ref("riders").on("value", firebaseListener, function(err) {
+        console.error("Error en listener Firebase:", err);
+        if (err.code === "PERMISSION_DENIED") {
+          fbPermOk = false;
+          actualizarIndicadorFirebase();
+          mostrarBannerPermisos();
+          document.getElementById('riderList').innerHTML =
+            '<div class="empty-st"><i class="fas fa-lock" style="color:var(--danger)"></i>'
+            +'<p>Permiso denegado por Firebase.<br>Actualiza las reglas en la consola de Firebase.</p></div>';
+        }
+      });
     }
 
+    /* ==========================================================
+       RENDER RIDERS DESDE FIREBASE
+       - Siempre muestra TODOS los riders (nunca los oculta)
+       - Activo: < 60s | Inactivo: 60s-5min | Offline: > 5min
+       - Propio rider primero, luego resto ordenados por nombre
+    ========================================================== */
     function renderRidersDesdeFirebase(riders) {
+      if (!map) return;
+
+      var listaEl = document.getElementById('riderList');
+      var ahora = Date.now();
+
+      /* Si no hay datos, mostrar mensaje pero no vaciar marcadores existentes */
       if (!riders || typeof riders !== 'object') {
-        /* No hay riders — limpiar todo */
-        for (var id in markers) { if(markers[id]) map.removeLayer(markers[id]); }
-        for (var id2 in rutas) { if(rutas[id2]) map.removeLayer(rutas[id2]); }
-        markers = {}; rutas = {};
-        document.getElementById('riderList').innerHTML =
+        limpiarMarcadoresNoExistentes({});
+        listaEl.innerHTML =
           '<div class="empty-st"><i class="fas fa-satellite-dish"></i>'
-          +'<p>No hay riders activos.<br>Abre esta pagina en otro dispositivo para probar el seguimiento en tiempo real.</p></div>';
+          +'<p>No hay riders en Firebase.<br>Abre esta pagina en otro dispositivo para ver el seguimiento en tiempo real.</p></div>';
         document.getElementById('sRiders').textContent = '0';
         return;
       }
 
-      var listaEl = document.getElementById('riderList');
-      var html = '';
-      var activos = 0;
+      /* Construir array de riders para ordenar */
+      var riderArr = [];
       var idsEnFirebase = {};
-      var ahora = Date.now();
 
       for (var id in riders) {
         var r = riders[id];
         if (!r || r.lat == null || r.lng == null) continue;
-
         idsEnFirebase[id] = true;
 
-        /* Estado: activo si su ultimo update es menor a 10 segundos */
-        var esActivo = r.timestamp && (ahora - r.timestamp) < 10000;
         var esMi = session && id === session.usuario;
-        var color = esMi ? '#00ff88' : colorRider(id);
-        var spd = (r.speed !== null && r.speed !== undefined) ? r.speed.toFixed(0) : '--';
+        var edad = r.timestamp ? (ahora - r.timestamp) : 999999;
+        var estado = 'offline'; /* > 5 min */
+        if (edad < 60000) estado = 'activo'; /* < 60s */
+        else if (edad < 300000) estado = 'inactivo'; /* 60s - 5min */
 
-        if (esActivo) activos++;
+        riderArr.push({
+          id: id,
+          data: r,
+          esMi: esMi,
+          estado: estado,
+          edad: edad,
+          color: esMi ? '#00ff88' : colorRider(id)
+        });
+      }
 
-        /* === SIDEBAR CARD === */
-        var cardCls = 'rider-card' + (esMi ? ' me' : '') + (!esActivo ? ' inactivo' : '');
-        var dotCls = esMi ? 'sdot mov' : (esActivo ? 'sdot on' : 'sdot off');
-        var estadoTxt = esActivo ? 'Activo' : 'Inactivo';
-        var estadoColor = esActivo ? 'color:var(--accent)' : 'color:var(--muted)';
+      /* Ordenar: propio primero, luego activos, luego inactivos, luego offline */
+      riderArr.sort(function(a, b) {
+        if (a.esMi && !b.esMi) return -1;
+        if (!a.esMi && b.esMi) return 1;
+        var orden = {activo:0, inactivo:1, offline:2};
+        if (orden[a.estado] !== orden[b.estado]) return orden[a.estado] - orden[b.estado];
+        var na = (a.data.nombre || a.id).toLowerCase();
+        var nb = (b.data.nombre || b.id).toLowerCase();
+        return na.localeCompare(nb);
+      });
+
+      /* Contar activos */
+      var activos = 0;
+      for (var i = 0; i < riderArr.length; i++) {
+        if (riderArr[i].estado === 'activo') activos++;
+      }
+      document.getElementById('sRiders').textContent = activos;
+
+      /* Construir HTML de sidebar */
+      var html = '';
+      for (var i = 0; i < riderArr.length; i++) {
+        var rd = riderArr[i];
+        var r = rd.data;
+        var id = rd.id;
+        var esMi = rd.esMi;
+        var estado = rd.estado;
+        var color = rd.color;
+        var spd = (r.speed !== null && r.speed !== undefined && r.speed >= 0) ? r.speed.toFixed(0) : '--';
+
+        /* Clases de la tarjeta */
+        var cardCls = 'rider-card';
+        if (esMi) cardCls += ' me';
+        if (estado === 'inactivo') cardCls += ' inactivo';
+        if (estado === 'offline') cardCls += ' offline';
+
+        /* Indicador de estado */
+        var dotCls, estadoTxt, estadoColor;
+        if (esMi && estado === 'activo') {
+          dotCls = 'sdot mov'; estadoTxt = 'Activo'; estadoColor = 'color:var(--accent)';
+        } else if (estado === 'activo') {
+          dotCls = 'sdot on'; estadoTxt = 'Activo'; estadoColor = 'color:var(--accent)';
+        } else if (estado === 'inactivo') {
+          dotCls = 'sdot warn'; estadoTxt = 'Inactivo'; estadoColor = 'color:var(--warning)';
+        } else {
+          dotCls = 'sdot off'; estadoTxt = 'Offline'; estadoColor = 'color:var(--muted)';
+        }
+
         var badge = esMi
           ? '<span style="font-size:9px;padding:2px 7px;background:var(--accent-dim);color:var(--accent);border-radius:5px;font-weight:600;flex-shrink:0">TU</span>'
           : '';
 
+        /* Tiempo desde ultimo update */
+        var tiempoTxt = '';
+        if (rd.edad < 60000) {
+          tiempoTxt = Math.floor(rd.edad/1000) + 's';
+        } else if (rd.edad < 3600000) {
+          tiempoTxt = Math.floor(rd.edad/60000) + 'm';
+        } else {
+          tiempoTxt = Math.floor(rd.edad/3600000) + 'h';
+        }
+
         html += '<div class="'+cardCls+'" onclick="focusRider(\''+id+'\')">'
           +'<div style="display:flex;align-items:center;gap:9px">'
-          +'<div style="width:30px;height:30px;background:'+color+';border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#0a0e17;flex-shrink:0">'+(r.nombre||id).charAt(0)+'</div>'
+          +'<div style="width:30px;height:30px;background:'+color+';border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#0a0e17;flex-shrink:0">'+(r.nombre||id).charAt(0).toUpperCase()+'</div>'
           +'<div style="flex:1;min-width:0">'
           +'<div style="font-size:12px;font-weight:600;display:flex;align-items:center;gap:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+(r.nombre||id)+' <span class="'+dotCls+'"></span></div>'
-          +'<div style="font-size:10px;color:var(--muted);font-family:JetBrains Mono,monospace">'+spd+' km/h <span style="'+estadoColor+';margin-left:6px">'+estadoTxt+'</span></div>'
+          +'<div style="font-size:10px;color:var(--muted);font-family:JetBrains Mono,monospace">'+spd+' km/h &middot; <span style="'+estadoColor+'">'+estadoTxt+'</span> <span style="opacity:.5">'+tiempoTxt+'</span></div>'
           +'</div>'
           +badge
           +'</div></div>';
@@ -628,49 +902,54 @@
         /* === RUTA / POLYLINE === */
         if (r.ruta && Array.isArray(r.ruta) && r.ruta.length > 1) {
           var coords = [];
-          for (var i = 0; i < r.ruta.length; i++) {
-            if (r.ruta[i].lat != null && r.ruta[i].lng != null) {
-              coords.push([r.ruta[i].lat, r.ruta[i].lng]);
+          for (var j = 0; j < r.ruta.length; j++) {
+            if (r.ruta[j].lat != null && r.ruta[j].lng != null) {
+              coords.push([r.ruta[j].lat, r.ruta[j].lng]);
             }
           }
           if (coords.length > 1) {
+            var opacidad = estado === 'activo' ? 0.5 : (estado === 'inactivo' ? 0.25 : 0.12);
             if (rutas[id]) {
               rutas[id].setLatLngs(coords);
+              rutas[id].setStyle({opacity:opacidad});
             } else {
               rutas[id] = L.polyline(coords,{
-                color:color,weight:3,opacity:esActivo?0.45:0.15,smoothFactor:1
+                color:color,weight:3,opacity:opacidad,smoothFactor:1
               }).addTo(map);
             }
-            /* Ajustar opacidad segun estado */
-            rutas[id].setStyle({opacity:esActivo?0.45:0.15});
           }
         }
       }
 
       /* Eliminar marcadores/rutas de riders que ya no estan en Firebase */
+      limpiarMarcadoresNoExistentes(idsEnFirebase);
+
+      /* Si no hay riders, mostrar mensaje */
+      if (riderArr.length === 0) {
+        html += '<div class="empty-st"><i class="fas fa-satellite-dish"></i>'
+          +'<p>No hay riders en el mapa.<br>Abre esta pagina en otro dispositivo para probar el tracking.</p></div>';
+      }
+
+      listaEl.innerHTML = html;
+    }
+
+    /* Eliminar marcadores/rutas que ya no existen en Firebase */
+    function limpiarMarcadoresNoExistentes(idsEnFirebase) {
       for (var oldId in markers) {
         if (!idsEnFirebase[oldId]) {
-          if (markers[oldId]) map.removeLayer(markers[oldId]);
-          if (rutas[oldId]) map.removeLayer(rutas[oldId]);
+          if (markers[oldId] && map) map.removeLayer(markers[oldId]);
+          if (rutas[oldId] && map) map.removeLayer(rutas[oldId]);
           delete markers[oldId];
           delete rutas[oldId];
         }
       }
-
-      if (activos === 0) {
-        html += '<div class="empty-st"><i class="fas fa-satellite-dish"></i>'
-          +'<p>No hay riders activos en este momento.<br>Abre esta pagina en otra pestana o dispositivo para ver el tracking en tiempo real.</p></div>';
-      }
-
-      listaEl.innerHTML = html;
-      document.getElementById('sRiders').textContent = activos;
     }
 
     /* ==========================================================
        INTERACCIONES MAPA
     ========================================================== */
     function focusRider(id) {
-      if (markers[id]) {
+      if (markers[id] && map) {
         map.setView(markers[id].getLatLng(),17,{animate:true});
         markers[id].openTooltip();
       }
@@ -678,7 +957,7 @@
 
     function centerMe() {
       if (!session) return;
-      if (markers[session.usuario]) {
+      if (markers[session.usuario] && map) {
         map.setView(markers[session.usuario].getLatLng(),17,{animate:true});
       } else {
         toast('Esperando senal GPS...','warning');
@@ -691,7 +970,8 @@
     function iniciarClock() {
       function tick() {
         var now = new Date();
-        document.getElementById('clock').textContent = now.toLocaleTimeString('es-EC',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+        var clockEl = document.getElementById('clock');
+        if (clockEl) clockEl.textContent = now.toLocaleTimeString('es-EC',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
         var el = Math.floor((Date.now()-startTime)/1000);
         var h = String(Math.floor(el/3600)).padStart(2,'0');
         var m = String(Math.floor((el%3600)/60)).padStart(2,'0');
@@ -720,7 +1000,7 @@
       document.getElementById('nUser').value='';
       document.getElementById('nPass').value='';
       refreshAdmList();
-      toast('Usuario "'+nombre+'" creado. Puede iniciar sesion en otro dispositivo.','success');
+      toast('Usuario "'+nombre+'" creado correctamente','success');
     }
 
     function delUser(u) {
@@ -731,12 +1011,11 @@
       for(var i=0;i<usuarios.length;i++){if(usuarios[i].usuario===u){target=usuarios[i];idx=i;break;}}
       if(!target) return;
       if(target.role==='admin'){toast('No se puede eliminar un administrador','error');return;}
-      /* Tambien eliminar de Firebase si existe */
-      db.ref("riders/"+u).remove();
+      if(db) db.ref("riders/"+u).remove();
       usuarios.splice(idx,1);
       setUsuarios(usuarios);
-      if(markers[u]){map.removeLayer(markers[u]);delete markers[u];}
-      if(rutas[u]){map.removeLayer(rutas[u]);delete rutas[u];}
+      if(markers[u]&&map){map.removeLayer(markers[u]);delete markers[u];}
+      if(rutas[u]&&map){map.removeLayer(rutas[u]);delete rutas[u];}
       refreshAdmList();
       toast('Usuario "'+target.nombre+'" eliminado','warning');
     }
@@ -744,8 +1023,8 @@
     function refreshAdmList() {
       var usuarios = getUsuarios();
       var box = document.getElementById('admList');
+      if (!box) return;
       var html = '';
-      var ahora = Date.now();
       if (usuarios.length===0) {
         html='<div class="empty-st"><i class="fas fa-users"></i><p>No hay usuarios registrados</p></div>';
       } else {
@@ -759,7 +1038,7 @@
           var bg=isAdmin?'var(--accent)':'var(--info)';
           var canDel=!isAdmin&&!isMe;
           var meLabel=isMe?' <span style="font-size:9px;color:var(--muted)">(tu)</span>':'';
-          var delBtn=canDel?'<button class="del-btn" onclick="delUser(\''+u.usuario+'\')" title="Eliminar"><i class="fas fa-trash-alt"></i></button>':'';
+          var delBtn=canDel?'<button class="del-btn" onclick="event.stopPropagation();delUser(\''+u.usuario+'\')" title="Eliminar"><i class="fas fa-trash-alt"></i></button>':'';
           html+='<div class="adm-u">'
             +'<div style="display:flex;align-items:center;gap:9px;min-width:0">'
             +'<div style="width:30px;height:30px;background:'+bg+';border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#0a0e17;flex-shrink:0">'+u.nombre.charAt(0)+'</div>'
