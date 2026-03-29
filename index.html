@@ -4,12 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Riders Tracker PRO</title>
-
-  <!-- Leaflet -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
-  <!-- UI -->
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -98,7 +94,6 @@
     .status-banner.show{display:block}
     .status-banner.error{background:rgba(255,59,92,.08);border:1px solid rgba(255,59,92,.25);color:var(--danger)}
     .status-banner.warn{background:rgba(255,230,0,.06);border:1px solid rgba(255,230,0,.2);color:var(--warning)}
-    .status-banner.ok{background:rgba(0,255,136,.06);border:1px solid rgba(0,255,136,.2);color:var(--accent)}
     .status-banner code{background:rgba(255,255,255,.06);padding:1px 5px;border-radius:4px;font-family:'JetBrains Mono',monospace;font-size:10px;white-space:pre-wrap}
     .retry-btn{margin-top:8px;padding:6px 14px;background:var(--danger);color:#fff;border:none;border-radius:6px;font-family:'Space Grotesk',sans-serif;font-size:11px;font-weight:600;cursor:pointer;transition:opacity .2s}
     .retry-btn:hover{opacity:.85}
@@ -188,7 +183,6 @@
         <i class="fas fa-info-circle" style="margin-right:5px"></i>
         <span id="bannerWarnTxt"></span>
       </div>
-
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:18px">
         <div class="st-c"><div class="st-v" id="sRiders">0</div><div class="st-l">Riders activos</div></div>
         <div class="st-c"><div class="st-v" id="sSpeed">0</div><div class="st-l">km/h</div></div>
@@ -237,11 +231,12 @@
     </div>
   </aside>
 
-  <!-- ========================================
-       FIRESTORE MODULAR (ES Modules)
-       onSnapshot + includeMetadataChanges
-       + enableIndexedDBPersistence (offline)
-  ======================================== -->
+  <!-- ============================================================
+       FIRESTORE MODULAR — SIN await QUE BLOQUEE EL MODULO
+       El await en top-level bloquea TODO el codigo del modulo,
+       incluyendo los event listeners del formulario de login.
+       Solucion: enableIndexedDBPersistence se ejecuta en background.
+  ============================================================ -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
     import {
@@ -256,7 +251,7 @@
     } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
     /* ----------------------------------------------------------
-       CONFIGURACION FIREBASE
+       FIREBASE INIT — Sincrono, no bloquea nada
     ---------------------------------------------------------- */
     const firebaseConfig = {
       apiKey: "AIzaSyAov1tlSvMc8VNfwKbYLDgNftDLUK390Tw",
@@ -270,25 +265,20 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
 
-    /* ----------------------------------------------------------
-       PERSISTENCIA OFFLINE — Los datos siempre disponibles
-       incluso sin internet. Se sincroniza solo al volver.
-    ---------------------------------------------------------- */
-    let persistenciaOk = false;
-    try {
-      await enableIndexedDBPersistence(db);
-      persistenciaOk = true;
+    /* Persistencia en BACKGROUND — SIN await, no bloquea el modulo.
+       Se activa cuando la Promise se resuelve, pero el codigo
+       del modulo continua ejecutandose inmediatamente. */
+    enableIndexedDBPersistence(db).then(function() {
       console.log("Persistencia IndexedDB activada");
-    } catch (err) {
+    }).catch(function(err) {
       if (err.code === 'failed-precondition') {
-        console.warn("Persistencia: multiples pestanas abiertas, se usa cache de esta pestana.");
-        persistenciaOk = true;
+        console.warn("Persistencia: multiples pestanas, se usa cache de esta.");
       } else if (err.code === 'unimplemented') {
         console.warn("Persistencia: navegador no soporta IndexedDB.");
       } else {
         console.warn("Persistencia error:", err.code);
       }
-    }
+    });
 
     /* ----------------------------------------------------------
        TOAST
@@ -296,115 +286,126 @@
     function toast(msg, type, duration) {
       type = type || 'info';
       duration = duration || 4000;
-      const c = document.getElementById('toastBox');
-      const t = document.createElement('div');
+      var c = document.getElementById('toastBox');
+      var t = document.createElement('div');
       t.className = 'toast ' + type;
-      const icons = { success:'fa-check-circle', error:'fa-times-circle', warning:'fa-exclamation-triangle', info:'fa-info-circle' };
-      const colors = { success:'var(--accent)', error:'var(--danger)', warning:'var(--warning)', info:'var(--info)' };
-      t.innerHTML = `<i class="fas ${icons[type]}" style="color:${colors[type]};font-size:16px;flex-shrink:0"></i><span style="font-size:13px;line-height:1.4">${msg}</span>`;
+      var icons = { success:'fa-check-circle', error:'fa-times-circle', warning:'fa-exclamation-triangle', info:'fa-info-circle' };
+      var colors = { success:'var(--accent)', error:'var(--danger)', warning:'var(--warning)', info:'var(--info)' };
+      t.innerHTML = '<i class="fas '+icons[type]+'" style="color:'+colors[type]+';font-size:16px;flex-shrink:0"></i><span style="font-size:13px;line-height:1.4">'+msg+'</span>';
       c.appendChild(t);
-      setTimeout(() => { t.classList.add('out'); setTimeout(() => { if(t.parentNode) t.remove(); }, 300); }, duration);
+      setTimeout(function(){ t.classList.add('out'); setTimeout(function(){ if(t.parentNode) t.remove(); }, 300); }, duration);
     }
 
     /* ----------------------------------------------------------
-       USUARIOS (localStorage)
+       USUARIOS (localStorage) — Todo sincrono
     ---------------------------------------------------------- */
     function seedAdmin() {
       try {
-        const raw = localStorage.getItem("rt_users");
-        if (!raw) { localStorage.setItem("rt_users", JSON.stringify([{nombre:"Juan Criollo",usuario:"jcriollo",password:"clavito01",role:"admin",created:Date.now()}])); return; }
-        const datos = JSON.parse(raw);
-        if (datos !== null && typeof datos === 'object' && !Array.isArray(datos)) {
-          const m = []; for (const k in datos) { const v=datos[k]; m.push({nombre:v.name||v.nombre||k,usuario:k,password:v.password||"",role:v.role||"user",created:v.created||Date.now()}); }
-          localStorage.setItem("rt_users", JSON.stringify(m)); return;
+        var raw = localStorage.getItem("rt_users");
+        if (!raw) {
+          localStorage.setItem("rt_users", JSON.stringify([{nombre:"Juan Criollo",usuario:"jcriollo",password:"clavito01",role:"admin",created:Date.now()}]));
+          return;
         }
-        if (Array.isArray(datos) && datos.length === 0) { localStorage.setItem("rt_users", JSON.stringify([{nombre:"Juan Criollo",usuario:"jcriollo",password:"clavito01",role:"admin",created:Date.now()}])); }
-      } catch(e) { localStorage.setItem("rt_users", JSON.stringify([{nombre:"Juan Criollo",usuario:"jcriollo",password:"clavito01",role:"admin",created:Date.now()}])); }
+        var datos = JSON.parse(raw);
+        if (datos !== null && typeof datos === 'object' && !Array.isArray(datos)) {
+          var m = [];
+          for (var k in datos) { var v = datos[k]; m.push({nombre:v.name||v.nombre||k,usuario:k,password:v.password||"",role:v.role||"user",created:v.created||Date.now()}); }
+          localStorage.setItem("rt_users", JSON.stringify(m));
+          return;
+        }
+        if (Array.isArray(datos) && datos.length === 0) {
+          localStorage.setItem("rt_users", JSON.stringify([{nombre:"Juan Criollo",usuario:"jcriollo",password:"clavito01",role:"admin",created:Date.now()}]));
+        }
+      } catch(e) {
+        localStorage.setItem("rt_users", JSON.stringify([{nombre:"Juan Criollo",usuario:"jcriollo",password:"clavito01",role:"admin",created:Date.now()}]));
+      }
     }
     seedAdmin();
-    function getUsuarios(){try{const d=JSON.parse(localStorage.getItem("rt_users"));if(Array.isArray(d))return d;}catch(e){}seedAdmin();try{return JSON.parse(localStorage.getItem("rt_users"));}catch(e){return [];}}
-    function setUsuarios(u){localStorage.setItem("rt_users",JSON.stringify(u));}
-    function getSession(){try{return JSON.parse(localStorage.getItem("rt_session"));}catch(e){return null;}}
-    function setSession(u){localStorage.setItem("rt_session",JSON.stringify(u));}
-    function clearSession(){localStorage.removeItem("rt_session");}
+
+    function getUsuarios() {
+      try { var d = JSON.parse(localStorage.getItem("rt_users")); if (Array.isArray(d)) return d; } catch(e) {}
+      seedAdmin();
+      try { return JSON.parse(localStorage.getItem("rt_users")); } catch(e) { return []; }
+    }
+    function setUsuarios(u) { localStorage.setItem("rt_users", JSON.stringify(u)); }
+    function getSession() { try { return JSON.parse(localStorage.getItem("rt_session")); } catch(e) { return null; } }
+    function setSession(u) { localStorage.setItem("rt_session", JSON.stringify(u)); }
+    function clearSession() { localStorage.removeItem("rt_session"); }
 
     /* ----------------------------------------------------------
-       PALETA
+       PALETA COLORES
     ---------------------------------------------------------- */
-    const PALETA=['#00ff88','#00e5ff','#ff6b35','#ffe600','#ff3b8b','#a78bfa','#34d399','#f97316','#22d3ee','#f43f5e'];
-    function colorRider(id){let h=0;for(let i=0;i<id.length;i++)h=id.charCodeAt(i)+((h<<5)-h);return PALETA[Math.abs(h)%PALETA.length];}
+    var PALETA = ['#00ff88','#00e5ff','#ff6b35','#ffe600','#ff3b8b','#a78bfa','#34d399','#f97316','#22d3ee','#f43f5e'];
+    function colorRider(id) { var h=0; for(var i=0;i<id.length;i++) h=id.charCodeAt(i)+((h<<5)-h); return PALETA[Math.abs(h)%PALETA.length]; }
 
     /* ----------------------------------------------------------
        ESTADO GLOBAL
     ---------------------------------------------------------- */
-    let map = null, markers = {}, rutas = {}, watchId = null, clockInterval = null, gpsTimeout = null;
-    let firestoreUnsubscribe = null, startTime = Date.now(), totalDist = 0, lastGPSPos = null;
-    let mapCentered = false, miRuta = [], lastRutaWrite = 0, session = null;
-    let firebaseDataReceived = false, renderPending = false, rutaInitDone = false;
-    let lastServerData = 0, fbState = 'init', fbRetryCount = 0, fbRetryTimer = null, connCheckInterval = null;
+    var map = null, markers = {}, rutas = {}, watchId = null, clockInterval = null, gpsTimeout = null;
+    var firestoreUnsubscribe = null, startTime = Date.now(), totalDist = 0, lastGPSPos = null;
+    var mapCentered = false, miRuta = [], lastRutaWrite = 0, session = null;
+    var firebaseDataReceived = false, renderPending = false, rutaInitDone = false;
+    var lastServerData = 0, fbState = 'init', fbRetryCount = 0, fbRetryTimer = null, connCheckInterval = null;
 
     /* ----------------------------------------------------------
-       ESTADO FIRESTORE UI
-       'init' | 'checking' | 'connected' | 'cache' | 'denied' | 'notfound' | 'error'
+       ESTADO FIREBASE UI
     ---------------------------------------------------------- */
     function actualizarUI() {
-      const dot = document.getElementById("fbDot");
-      const txt = document.getElementById("fbStatus");
-      const dbTxt = document.getElementById("dbModeTxt");
-      const bErr = document.getElementById("bannerError");
-      const bWarn = document.getElementById("bannerWarn");
-      if(!dot||!txt) return;
-      if(bErr) bErr.classList.remove('show');
-      if(bWarn) bWarn.classList.remove('show');
+      var dot = document.getElementById("fbDot");
+      var txt = document.getElementById("fbStatus");
+      var dbTxt = document.getElementById("dbModeTxt");
+      var bErr = document.getElementById("bannerError");
+      var bWarn = document.getElementById("bannerWarn");
+      if (!dot || !txt) return;
+      if (bErr) bErr.classList.remove('show');
+      if (bWarn) bWarn.classList.remove('show');
 
       switch(fbState) {
-        case 'init': dot.className='fb-dot err'; txt.textContent='Iniciando...'; if(dbTxt)dbTxt.textContent='--'; break;
-        case 'checking': dot.className='fb-dot cache'; txt.textContent='Verificando...'; if(dbTxt)dbTxt.textContent='Verificando'; break;
-        case 'connected': dot.className='fb-dot'; txt.textContent='Firestore: EN VIVO'; if(dbTxt)dbTxt.textContent='LIVE'; break;
-        case 'cache': dot.className='fb-dot cache'; txt.textContent='Firestore: Cache'; if(dbTxt)dbTxt.textContent='CACHE';
-          if(bWarn){bWarn.classList.add('show');document.getElementById('bannerWarnTxt').textContent='Sin conexion al servidor. Mostrando datos en cache. Se sincronizara al volver.';} break;
-        case 'denied': dot.className='fb-dot err'; txt.textContent='Firestore: Bloqueado'; if(dbTxt)dbTxt.textContent='ERROR';
-          if(bErr){bErr.classList.add('show');document.getElementById('bannerErrorTxt').innerHTML='<strong>Permiso denegado.</strong> Ve a Firebase Console &gt; <strong>Firestore Database</strong> &gt; <strong>Reglas</strong> y pega:<br><code>rules_version = \'2\';\nservice cloud.firestore {\n  match /databases/{db}/documents {\n    match /{path=**} {\n      allow read, write: if true;\n    }\n  }\n}</code>';} break;
-        case 'notfound': dot.className='fb-dot err'; txt.textContent='Firestore: No creada'; if(dbTxt)dbTxt.textContent='ERROR';
-          if(bErr){bErr.classList.add('show');document.getElementById('bannerErrorTxt').innerHTML='<strong>Firestore no existe.</strong><br>1. Ve a <a href="https://console.firebase.google.com/project/mapa-c26d7/firestore" target="_blank" style="color:var(--info);text-decoration:underline">Firebase Console &gt; Firestore</a><br>2. Clic en <strong>"Crear base de datos"</strong><br>3. Elige <strong>"Modo de prueba"</strong><br>4. Configura las reglas como indica arriba';} break;
-        case 'error': dot.className='fb-dot err'; txt.textContent='Firebase: Error'; if(dbTxt)dbTxt.textContent='ERROR'; break;
+        case 'init': dot.className='fb-dot err'; txt.textContent='Iniciando...'; if(dbTxt) dbTxt.textContent='--'; break;
+        case 'checking': dot.className='fb-dot cache'; txt.textContent='Verificando...'; if(dbTxt) dbTxt.textContent='Verificando'; break;
+        case 'connected': dot.className='fb-dot'; txt.textContent='Firestore: EN VIVO'; if(dbTxt) dbTxt.textContent='LIVE'; break;
+        case 'cache': dot.className='fb-dot cache'; txt.textContent='Firestore: Cache'; if(dbTxt) dbTxt.textContent='CACHE';
+          if(bWarn){bWarn.classList.add('show'); document.getElementById('bannerWarnTxt').textContent='Sin conexion al servidor. Datos en cache. Se sincronizara al volver.';} break;
+        case 'denied': dot.className='fb-dot err'; txt.textContent='Firestore: Bloqueado'; if(dbTxt) dbTxt.textContent='ERROR';
+          if(bErr){bErr.classList.add('show'); document.getElementById('bannerErrorTxt').innerHTML='<strong>Permiso denegado.</strong> Ve a Firebase Console &gt; <strong>Firestore Database</strong> &gt; <strong>Reglas</strong> y pega:<br><code>rules_version = \'2\';\nservice cloud.firestore {\n  match /databases/{db}/documents {\n    match /{path=**} {\n      allow read, write: if true;\n    }\n  }\n}</code>';} break;
+        case 'notfound': dot.className='fb-dot err'; txt.textContent='Firestore: No creada'; if(dbTxt) dbTxt.textContent='ERROR';
+          if(bErr){bErr.classList.add('show'); document.getElementById('bannerErrorTxt').innerHTML='<strong>Firestore no existe.</strong><br>1. Ve a <a href="https://console.firebase.google.com/project/mapa-c26d7/firestore" target="_blank" style="color:var(--info);text-decoration:underline">Firebase Console &gt; Firestore</a><br>2. Clic en <strong>"Crear base de datos"</strong><br>3. Elige <strong>"Modo de prueba"</strong><br>4. Luego configura las reglas';} break;
+        case 'error': dot.className='fb-dot err'; txt.textContent='Firebase: Error'; if(dbTxt) dbTxt.textContent='ERROR'; break;
       }
     }
 
-    /* Verificar permisos escribiendo/leyendo un doc de prueba */
-    async function verificarFirestore() {
+    /* Verificar permisos */
+    function verificarFirestore() {
       fbState = 'checking'; actualizarUI();
-      try {
-        const testId = '_ping_' + Date.now();
-        await setDoc(doc(db, "_ping", testId), { t: Date.now() });
-        await deleteDoc(doc(db, "_ping", testId));
+      var testId = '_ping_' + Date.now();
+      setDoc(doc(db, "_ping", testId), { t: Date.now() }).then(function() {
+        deleteDoc(doc(db, "_ping", testId)).catch(function(){});
         fbState = 'connected'; fbRetryCount = 0; actualizarUI();
         toast('Firestore conectado — tiempo real activo', 'success');
-      } catch(err) {
-        const code = err.code || '';
+      }).catch(function(err) {
+        var code = err.code || '';
         console.error("Verificacion Firestore:", code, err.message);
         if (code === 'permission-denied') fbState = 'denied';
-        else if (code === 'not-found' || (err.message && err.message.includes('not found'))) fbState = 'notfound';
+        else if (code === 'not-found' || (err.message && err.message.indexOf('not found') !== -1)) fbState = 'notfound';
         else if (code === 'unavailable' || code === 'deadline-exceeded') { fbState = 'cache'; programarReintento(); }
         else { fbState = 'error'; programarReintento(); }
         actualizarUI();
-      }
+      });
     }
 
     function programarReintento() {
       fbRetryCount++;
       if (fbRetryCount > 8) { toast('No se pudo conectar tras multiples intentos', 'error', 8000); return; }
-      const delay = Math.min(fbRetryCount * 4000, 20000);
+      var delay = Math.min(fbRetryCount * 4000, 20000);
       if (fbRetryTimer) clearTimeout(fbRetryTimer);
-      fbRetryTimer = setTimeout(() => {
+      fbRetryTimer = setTimeout(function() {
         if (fbState === 'cache' || fbState === 'error') verificarFirestore();
       }, delay);
     }
 
-    /* Chequeo periodico de si estamos recibiendo datos del servidor */
     function iniciarConnCheck() {
       if (connCheckInterval) return;
-      connCheckInterval = setInterval(() => {
+      connCheckInterval = setInterval(function() {
         if (fbState === 'connected' && lastServerData > 0 && Date.now() - lastServerData > 30000) {
           fbState = 'cache'; actualizarUI();
         } else if (fbState === 'cache' && lastServerData > 0 && Date.now() - lastServerData <= 30000) {
@@ -413,55 +414,79 @@
         }
       }, 5000);
     }
-    function detenerConnCheck(){ if(connCheckInterval){clearInterval(connCheckInterval);connCheckInterval=null;} }
+    function detenerConnCheck() { if(connCheckInterval){clearInterval(connCheckInterval);connCheckInterval=null;} }
 
     /* ----------------------------------------------------------
        HAVERSINE
     ---------------------------------------------------------- */
-    function haversine(a,b,c,d){const R=6371,e=(c-a)*Math.PI/180,f=(d-b)*Math.PI/180,g=Math.sin(e/2)*Math.sin(e/2)+Math.cos(a*Math.PI/180)*Math.cos(c*Math.PI/180)*Math.sin(f/2)*Math.sin(f/2);return R*2*Math.atan2(Math.sqrt(g),Math.sqrt(1-g));}
+    function haversine(a,b,c,d) {
+      var R=6371,e=(c-a)*Math.PI/180,f=(d-b)*Math.PI/180;
+      var g=Math.sin(e/2)*Math.sin(e/2)+Math.cos(a*Math.PI/180)*Math.cos(c*Math.PI/180)*Math.sin(f/2)*Math.sin(f/2);
+      return R*2*Math.atan2(Math.sqrt(g),Math.sqrt(1-g));
+    }
 
     /* ----------------------------------------------------------
-       INICIAR APP
+       INICIAR APP (despues de login o auto-login)
     ---------------------------------------------------------- */
     function iniciarApp() {
       document.getElementById('topUser').textContent = session.nombre;
       if (session.role === 'admin') document.getElementById('adminBtn').style.display = 'block';
-      initMap(); iniciarGPS(); iniciarFirestoreListener(); iniciarClock(); iniciarConnCheck();
+      initMap();
+      iniciarGPS();
+      iniciarFirestoreListener();
+      iniciarClock();
+      iniciarConnCheck();
       setTimeout(verificarFirestore, 2500);
       toast('Bienvenido, ' + session.nombre, 'success');
     }
 
     /* ----------------------------------------------------------
-       LOGIN
+       LOGIN — Funcion que valida credenciales en localStorage
     ---------------------------------------------------------- */
     function handleLogin(e) {
       e.preventDefault();
-      const usuario = document.getElementById('loginUser').value.trim().toLowerCase();
-      const password = document.getElementById('loginPass').value;
-      const errEl = document.getElementById('loginErr');
-      const usuarios = getUsuarios();
-      let user = null;
-      for (let i = 0; i < usuarios.length; i++) { if (usuarios[i].usuario === usuario && usuarios[i].password === password) { user = usuarios[i]; break; } }
+      var usuario = document.getElementById('loginUser').value.trim().toLowerCase();
+      var password = document.getElementById('loginPass').value;
+      var errEl = document.getElementById('loginErr');
+      var usuarios = getUsuarios();
+      var user = null;
+      for (var i = 0; i < usuarios.length; i++) {
+        if (usuarios[i].usuario === usuario && usuarios[i].password === password) {
+          user = usuarios[i]; break;
+        }
+      }
       if (user) {
-        errEl.classList.remove('show'); session = user; setSession(user);
-        const ls = document.getElementById('loginScreen'); ls.style.opacity = '0';
-        setTimeout(() => { ls.style.display = 'none'; document.getElementById('appLayout').classList.add('active'); iniciarApp(); }, 450);
+        errEl.classList.remove('show');
+        session = user;
+        setSession(user);
+        var ls = document.getElementById('loginScreen');
+        ls.style.opacity = '0';
+        setTimeout(function() {
+          ls.style.display = 'none';
+          document.getElementById('appLayout').classList.add('active');
+          iniciarApp();
+        }, 450);
       } else {
         errEl.classList.add('show');
-        const card = document.getElementById('loginCard'); card.style.animation = 'shake .45s';
-        setTimeout(() => { card.style.animation = ''; }, 500);
+        var card = document.getElementById('loginCard');
+        card.style.animation = 'shake .45s';
+        setTimeout(function() { card.style.animation = ''; }, 500);
       }
     }
 
     function handleLogout() {
-      if (session) { deleteDoc(doc(db, "riders", session.usuario)).catch(() => {}); }
-      clearSession(); detenerTodo();
+      if (session) { deleteDoc(doc(db, "riders", session.usuario)).catch(function(){}); }
+      clearSession();
+      detenerTodo();
       document.getElementById('appLayout').classList.remove('active');
-      const ls = document.getElementById('loginScreen'); ls.style.display = 'flex'; ls.style.opacity = '1';
+      var ls = document.getElementById('loginScreen');
+      ls.style.display = 'flex'; ls.style.opacity = '1';
       document.getElementById('loginPass').value = '';
+      document.getElementById('loginUser').value = '';
       document.getElementById('adminBtn').style.display = 'none';
       firebaseDataReceived = false; lastServerData = 0; fbState = 'init'; fbRetryCount = 0;
       toast('Sesion cerrada', 'info');
+      setTimeout(function() { document.getElementById('loginUser').focus(); }, 100);
     }
 
     function detenerTodo() {
@@ -471,51 +496,66 @@
       detenerConnCheck();
       if (fbRetryTimer) { clearTimeout(fbRetryTimer); fbRetryTimer = null; }
       if (firestoreUnsubscribe) { firestoreUnsubscribe(); firestoreUnsubscribe = null; }
-      if (map) { for (const id in markers) { if(markers[id]) map.removeLayer(markers[id]); } for (const id in rutas) { if(rutas[id]) map.removeLayer(rutas[id]); } }
+      if (map) { for (var id in markers) { if(markers[id]) map.removeLayer(markers[id]); } for (var id2 in rutas) { if(rutas[id2]) map.removeLayer(rutas[id2]); } }
       markers = {}; rutas = {}; map = null; mapCentered = false;
       totalDist = 0; lastGPSPos = null; miRuta = []; lastRutaWrite = 0; session = null; rutaInitDone = false;
     }
 
     /* ----------------------------------------------------------
-       AUTO-LOGIN
+       AUTO-LOGIN — Sincrono, no depende de Firebase
     ---------------------------------------------------------- */
-    const savedSession = getSession();
+    var savedSession = getSession();
     if (savedSession) {
-      const usuarios = getUsuarios();
-      let valido = false;
-      for (let i = 0; i < usuarios.length; i++) { if (usuarios[i].usuario === savedSession.usuario) { valido = true; break; } }
+      var usuarios = getUsuarios();
+      var valido = false;
+      for (var i = 0; i < usuarios.length; i++) {
+        if (usuarios[i].usuario === savedSession.usuario) { valido = true; break; }
+      }
       if (valido) {
         session = savedSession;
         document.getElementById('loginScreen').style.display = 'none';
         document.getElementById('appLayout').classList.add('active');
         iniciarApp();
-      } else { clearSession(); }
+      } else {
+        clearSession();
+      }
     }
-    if (!session) document.getElementById('loginUser').focus();
+    if (!session) {
+      document.getElementById('loginUser').focus();
+    }
 
     /* ----------------------------------------------------------
-       EVENT LISTENERS (no inline onclick porque es module)
+       EVENT LISTENERS — Se registran INMEDIATAMENTE,
+       sin ser bloqueados por ningun await
     ---------------------------------------------------------- */
     document.getElementById('loginForm').addEventListener('submit', handleLogin);
-    document.getElementById('togglePassBtn').addEventListener('click', () => {
-      const inp = document.getElementById('loginPass'), ico = document.getElementById('passIcon');
+
+    document.getElementById('togglePassBtn').addEventListener('click', function() {
+      var inp = document.getElementById('loginPass');
+      var ico = document.getElementById('passIcon');
       if (inp.type === 'password') { inp.type = 'text'; ico.className = 'fas fa-eye-slash'; }
       else { inp.type = 'password'; ico.className = 'fas fa-eye'; }
     });
-    document.getElementById('loginUser').addEventListener('keydown', (e) => { if(e.key==='Enter') document.getElementById('loginPass').focus(); });
+
+    document.getElementById('loginUser').addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') document.getElementById('loginPass').focus();
+    });
+
     document.getElementById('logoutBtn').addEventListener('click', handleLogout);
+
     document.getElementById('adminBtn').addEventListener('click', toggleAdmin);
-    document.getElementById('adminBtnInner').addEventListener('mouseover', function(){ this.style.background='rgba(0,255,136,.25)'; });
-    document.getElementById('adminBtnInner').addEventListener('mouseout', function(){ this.style.background='var(--accent-dim)'; });
+    document.getElementById('adminBtnInner').addEventListener('mouseover', function() { this.style.background = 'rgba(0,255,136,.25)'; });
+    document.getElementById('adminBtnInner').addEventListener('mouseout', function() { this.style.background = 'var(--accent-dim)'; });
     document.getElementById('admOv').addEventListener('click', toggleAdmin);
     document.getElementById('closeAdmBtn').addEventListener('click', toggleAdmin);
+
     document.getElementById('centerMeBtn').addEventListener('click', centerMe);
     document.getElementById('limpiarRutaBtn').addEventListener('click', limpiarRuta);
-    document.getElementById('retryBtn').addEventListener('click', () => { fbRetryCount = 0; verificarFirestore(); });
+    document.getElementById('retryBtn').addEventListener('click', function() { fbRetryCount = 0; verificarFirestore(); });
     document.getElementById('crearUserBtn').addEventListener('click', crearUsuario);
 
     /* ----------------------------------------------------------
-       MAPA
+       MAPA (Leaflet + CartoDB Dark)
     ---------------------------------------------------------- */
     function initMap() {
       map = L.map('map', { center: [-2.17, -79.92], zoom: 13, zoomControl: true });
@@ -523,29 +563,36 @@
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',
         subdomains: 'abcd', maxZoom: 20
       }).addTo(map);
-      setTimeout(() => { map.invalidateSize(); }, 250);
-      window.addEventListener('resize', () => { if(map) map.invalidateSize(); });
+      setTimeout(function() { map.invalidateSize(); }, 250);
+      window.addEventListener('resize', function() { if(map) map.invalidateSize(); });
     }
 
     /* ----------------------------------------------------------
-       GPS → Escribe a Firestore con setDoc + merge
+       GPS → Firestore con setDoc + merge
        Posicion: cada update GPS (merge: solo lat,lng,speed,timestamp)
        Ruta: cada 10s (merge: solo ruta)
     ---------------------------------------------------------- */
     function iniciarGPS() {
-      if (!navigator.geolocation) { toast('Navegador no soporta geolocalizacion', 'error'); document.getElementById('gpsTxt').textContent='GPS: No disponible'; return; }
+      if (!navigator.geolocation) {
+        toast('Navegador no soporta geolocalizacion', 'error');
+        document.getElementById('gpsTxt').textContent = 'GPS: No disponible';
+        return;
+      }
       document.getElementById('gpsTxt').textContent = 'GPS: Buscando...';
-      gpsTimeout = setTimeout(() => { document.getElementById('gpsTxt').textContent='GPS: Sin senal'; toast('Sin senal GPS. Verifica permisos.', 'warning'); }, 15000);
+      gpsTimeout = setTimeout(function() {
+        document.getElementById('gpsTxt').textContent = 'GPS: Sin senal';
+        toast('Sin senal GPS. Verifica permisos.', 'warning');
+      }, 15000);
 
       watchId = navigator.geolocation.watchPosition(
-        (pos) => {
+        function(pos) {
           if (gpsTimeout) { clearTimeout(gpsTimeout); gpsTimeout = null; }
-          const lat = pos.coords.latitude, lng = pos.coords.longitude;
-          const acc = pos.coords.accuracy, spd = pos.coords.speed;
+          var lat = pos.coords.latitude, lng = pos.coords.longitude;
+          var acc = pos.coords.accuracy, spd = pos.coords.speed;
 
-          if (lastGPSPos) { const d = haversine(lastGPSPos.lat, lastGPSPos.lng, lat, lng); if(d > 0.005) totalDist += d; }
-          lastGPSPos = { lat, lng };
-          const skmh = (spd !== null && spd >= 0) ? Math.round(spd * 3.6) : '0';
+          if (lastGPSPos) { var d = haversine(lastGPSPos.lat, lastGPSPos.lng, lat, lng); if(d > 0.005) totalDist += d; }
+          lastGPSPos = { lat: lat, lng: lng };
+          var skmh = (spd !== null && spd >= 0) ? Math.round(spd * 3.6) : '0';
           document.getElementById('sSpeed').textContent = skmh;
           document.getElementById('sDist').textContent = totalDist.toFixed(2);
           document.getElementById('coordTxt').textContent = lat.toFixed(5) + ', ' + lng.toFixed(5);
@@ -557,46 +604,46 @@
 
           if (!mapCentered) { map.setView([lat, lng], 16); mapCentered = true; }
 
-          miRuta.push({ lat, lng, time: Date.now() });
+          miRuta.push({ lat: lat, lng: lng, time: Date.now() });
           if (miRuta.length > 500) miRuta = miRuta.slice(-500);
 
           /* Cargar ruta previa la primera vez */
           if (!rutaInitDone) {
             rutaInitDone = true;
-            getDoc(doc(db, "riders", session.usuario)).then(snap => {
+            getDoc(doc(db, "riders", session.usuario)).then(function(snap) {
               if (snap.exists()) {
-                const data = snap.data();
+                var data = snap.data();
                 if (data.ruta && Array.isArray(data.ruta) && data.ruta.length > 0) {
-                  const prev = data.ruta.slice(-300);
+                  var prev = data.ruta.slice(-300);
                   miRuta = prev.concat(miRuta.slice(1));
                   if (miRuta.length > 500) miRuta = miRuta.slice(-500);
                 }
               }
-            }).catch(() => {});
+            }).catch(function(){});
           }
 
           /* Escribir posicion (merge: no toca ruta) */
           setDoc(doc(db, "riders", session.usuario), {
-            nombre: session.nombre, lat, lng,
+            nombre: session.nombre, lat: lat, lng: lng,
             speed: (spd !== null && spd >= 0) ? Math.round(spd * 3.6) : 0,
             timestamp: Date.now()
-          }, { merge: true }).catch(err => {
+          }, { merge: true }).catch(function(err) {
             if (err.code === 'permission-denied' && fbState !== 'denied') { fbState = 'denied'; actualizarUI(); }
           });
 
           /* Escribir ruta cada 10s (merge: no toca lat/lng/speed) */
-          const ahora = Date.now();
+          var ahora = Date.now();
           if (ahora - lastRutaWrite >= 10000) {
             lastRutaWrite = ahora;
-            setDoc(doc(db, "riders", session.usuario), { ruta: miRuta.slice(-300) }, { merge: true }).catch(() => {});
+            setDoc(doc(db, "riders", session.usuario), { ruta: miRuta.slice(-300) }, { merge: true }).catch(function(){});
           }
 
           /* Fallback local mientras Firestore no envia datos */
           if (!firebaseDataReceived) renderFallback(lat, lng, spd);
         },
-        (err) => {
+        function(err) {
           if (gpsTimeout) { clearTimeout(gpsTimeout); gpsTimeout = null; }
-          const m = { 1:'Permiso de ubicacion denegado.', 2:'Ubicacion no disponible.', 3:'Timeout GPS.' };
+          var m = { 1:'Permiso de ubicacion denegado.', 2:'Ubicacion no disponible.', 3:'Timeout GPS.' };
           toast(m[err.code] || 'Error GPS', 'warning', 6000);
           document.getElementById('gpsTxt').textContent = 'GPS: Sin senal';
         },
@@ -604,16 +651,16 @@
       );
     }
 
-    /* Fallback: mostrar tu posicion en sidebar mientras Firestore responde */
+    /* Fallback local */
     function renderFallback(lat, lng, spd) {
       if (!session) return;
-      const el = document.getElementById('riderList');
-      const s = (spd !== null && spd >= 0) ? Math.round(spd * 3.6) : '--';
-      el.innerHTML = `<div class="rider-card me"><div style="display:flex;align-items:center;gap:9px"><div style="width:30px;height:30px;background:#00ff88;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#0a0e17;flex-shrink:0">${session.nombre.charAt(0)}</div><div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:600;display:flex;align-items:center;gap:5px">${session.nombre} <span class="sdot mov"></span></div><div style="font-size:10px;color:var(--muted);font-family:JetBrains Mono,monospace">${s} km/h <span style="color:var(--accent);margin-left:6px">GPS Activo</span></div></div><span style="font-size:9px;padding:2px 7px;background:var(--accent-dim);color:var(--accent);border-radius:5px;font-weight:600;flex-shrink:0">TU</span></div></div><div class="empty-st" style="padding:16px"><i class="fas fa-hourglass-half" style="font-size:20px"></i><p style="font-size:11px">Conectando con Firestore...</p></div>`;
+      var el = document.getElementById('riderList');
+      var s = (spd !== null && spd >= 0) ? Math.round(spd * 3.6) : '--';
+      el.innerHTML = '<div class="rider-card me"><div style="display:flex;align-items:center;gap:9px"><div style="width:30px;height:30px;background:#00ff88;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#0a0e17;flex-shrink:0">'+session.nombre.charAt(0)+'</div><div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:600;display:flex;align-items:center;gap:5px">'+session.nombre+' <span class="sdot mov"></span></div><div style="font-size:10px;color:var(--muted);font-family:JetBrains Mono,monospace">'+s+' km/h <span style="color:var(--accent);margin-left:6px">GPS Activo</span></div></div><span style="font-size:9px;padding:2px 7px;background:var(--accent-dim);color:var(--accent);border-radius:5px;font-weight:600;flex-shrink:0">TU</span></div></div><div class="empty-st" style="padding:16px"><i class="fas fa-hourglass-half" style="font-size:20px"></i><p style="font-size:11px">Conectando con Firestore...</p></div>';
       document.getElementById('sRiders').textContent = '1';
       if (map) {
         if (!markers[session.usuario]) {
-          const ic = L.divIcon({ className:'', html:`<div class="cm me">${session.nombre.charAt(0).toUpperCase()}</div>`, iconSize:[36,36], iconAnchor:[18,18] });
+          var ic = L.divIcon({ className:'', html:'<div class="cm me">'+session.nombre.charAt(0).toUpperCase()+'</div>', iconSize:[36,36], iconAnchor:[18,18] });
           markers[session.usuario] = L.marker([lat, lng], {icon:ic}).addTo(map);
           markers[session.usuario].bindTooltip(session.nombre, {permanent:false,direction:'top',offset:[0,-22],className:'ct'});
         } else { markers[session.usuario].setLatLng([lat, lng]); }
@@ -624,84 +671,60 @@
       if (!session) return;
       miRuta = []; lastGPSPos = null; totalDist = 0;
       document.getElementById('sDist').textContent = '0.0';
-      setDoc(doc(db, "riders", session.usuario), { ruta: [] }, { merge: true }).catch(() => {});
+      setDoc(doc(db, "riders", session.usuario), { ruta: [] }, { merge: true }).catch(function(){});
       if (rutas[session.usuario] && map) { map.removeLayer(rutas[session.usuario]); delete rutas[session.usuario]; }
       toast('Ruta limpiada', 'info');
     }
 
     /* ----------------------------------------------------------
-       FIRESTORE LISTENER — onSnapshot con includeMetadataChanges
+       FIRESTORE LISTENER — onSnapshot + includeMetadataChanges
        
-       CLAVE DEL TIEMPO REAL:
-       - snapshot.metadata.fromCache === false → datos del SERVIDOR (EN VIVO)
-       - snapshot.metadata.fromCache === true  → datos del CACHE (OFFLINE)
-       - Con enableIndexedDBPersistence, los datos SIEMPRE estan disponibles
-       - Firestore se reconecta SOLO sin codigo extra
-       - Cada cambio en cualquier documento de "riders" dispara este callback
+       fromCache=false → datos del SERVIDOR (EN VIVO)
+       fromCache=true  → datos del CACHE (OFFLINE)
     ---------------------------------------------------------- */
     function iniciarFirestoreListener() {
-      const ridersRef = collection(db, "riders");
+      var ridersRef = collection(db, "riders");
 
       firestoreUnsubscribe = onSnapshot(
         ridersRef,
-        { includeMetadataChanges: true },  /* CLAVE: detecta servidor vs cache */
-        (snapshot) => {
-          /*
-            METADATA: de donde vienen los datos?
-            fromCache=false = del servidor = EN VIVO
-            fromCache=true  = del cache local = OFFLINE
-          */
+        { includeMetadataChanges: true },
+        function(snapshot) {
           if (!snapshot.metadata.fromCache) {
-            /* Datos vienen del servidor → CONEXION REAL */
             lastServerData = Date.now();
-            if (fbState !== 'connected') {
-              fbState = 'connected';
-              fbRetryCount = 0;
-              actualizarUI();
-            }
+            if (fbState !== 'connected') { fbState = 'connected'; fbRetryCount = 0; actualizarUI(); }
           } else if (lastServerData === 0) {
-            /* Primer snapshot y viene del cache → todavia no sabemos si hay servidor */
-            if (fbState === 'checking' || fbState === 'init') {
-              fbState = 'cache';
-              actualizarUI();
-            }
+            if (fbState === 'checking' || fbState === 'init') { fbState = 'cache'; actualizarUI(); }
           }
-          /* Si fromCache=true PERO lastServerData>0, significa que el servidor
-             respondio antes y ahora estamos offline temporalmente. No cambiamos
-             el estado aqui — lo hace el connCheckInterval */
 
           firebaseDataReceived = true;
-
-          /* Extraer todos los riders del snapshot */
           if (renderPending) return;
           renderPending = true;
-          requestAnimationFrame(() => {
+          requestAnimationFrame(function() {
             renderPending = false;
-            const riders = {};
-            snapshot.forEach((d) => { riders[d.id] = d.data(); });
+            var riders = {};
+            snapshot.forEach(function(d) { riders[d.id] = d.data(); });
             renderRiders(riders);
           });
         },
-        (error) => {
+        function(error) {
           console.error("onSnapshot error:", error.code, error.message);
-          const code = error.code || '';
+          var code = error.code || '';
           if (code === 'permission-denied') fbState = 'denied';
           else if (code === 'not-found') fbState = 'notfound';
           else { fbState = 'error'; programarReintento(); }
           actualizarUI();
-          document.getElementById('riderList').innerHTML = `<div class="empty-st"><i class="fas fa-exclamation-triangle" style="color:var(--danger)"></i><p>Error: ${error.message || code}</p></div>`;
+          document.getElementById('riderList').innerHTML = '<div class="empty-st"><i class="fas fa-exclamation-triangle" style="color:var(--danger)"></i><p>Error: '+(error.message||code)+'</p></div>';
         }
       );
     }
 
     /* ----------------------------------------------------------
-       RENDER — 3 estados visibles, siempre se muestran
-       Activo <60s | Inactivo 60s-5min | Offline >5min
+       RENDER — 3 estados, siempre visibles, ordenados
     ---------------------------------------------------------- */
     function renderRiders(riders) {
       if (!map) return;
-      const el = document.getElementById('riderList');
-      const ahora = Date.now();
+      var el = document.getElementById('riderList');
+      var ahora = Date.now();
 
       if (!riders || Object.keys(riders).length === 0) {
         limpiarViejos({});
@@ -710,82 +733,78 @@
         return;
       }
 
-      /* Construir array ordenable */
-      const arr = [];
-      const ids = {};
-      for (const id in riders) {
-        const r = riders[id];
+      var arr = [];
+      var ids = {};
+      for (var id in riders) {
+        var r = riders[id];
         if (!r || r.lat == null || r.lng == null) continue;
         ids[id] = true;
-        const esMi = session && id === session.usuario;
-        const edad = r.timestamp ? (ahora - r.timestamp) : 999999;
-        let est = 'offline';
+        var esMi = session && id === session.usuario;
+        var edad = r.timestamp ? (ahora - r.timestamp) : 999999;
+        var est = 'offline';
         if (edad < 60000) est = 'activo';
         else if (edad < 300000) est = 'inactivo';
-        arr.push({ id, data: r, esMi, est, edad, color: esMi ? '#00ff88' : colorRider(id) });
+        arr.push({ id:id, data:r, esMi:esMi, est:est, edad:edad, color: esMi ? '#00ff88' : colorRider(id) });
       }
 
-      /* Ordenar: propio primero, activos, inactivos, offline */
-      arr.sort((a, b) => {
+      arr.sort(function(a, b) {
         if (a.esMi && !b.esMi) return -1;
         if (!a.esMi && b.esMi) return 1;
-        const o = { activo:0, inactivo:1, offline:2 };
+        var o = { activo:0, inactivo:1, offline:2 };
         if (o[a.est] !== o[b.est]) return o[a.est] - o[b.est];
         return (a.data.nombre || a.id).localeCompare(b.data.nombre || b.id);
       });
 
-      let act = 0;
-      for (let i = 0; i < arr.length; i++) if (arr[i].est === 'activo') act++;
+      var act = 0;
+      for (var i = 0; i < arr.length; i++) if (arr[i].est === 'activo') act++;
       document.getElementById('sRiders').textContent = act;
 
-      /* Construir HTML */
-      let html = '';
-      for (let i = 0; i < arr.length; i++) {
-        const { id, data: r, esMi, est, edad, color } = arr[i];
-        const spd = (r.speed != null && r.speed >= 0) ? r.speed.toFixed(0) : '--';
-
-        const cc = 'rider-card' + (esMi ? ' me' : '') + (est === 'inactivo' ? ' inactivo' : '') + (est === 'offline' ? ' offline' : '');
-        let dc, et, ec;
+      var html = '';
+      for (var i = 0; i < arr.length; i++) {
+        var rd = arr[i], r = rd.data, id = rd.id, esMi = rd.esMi, est = rd.est, color = rd.color;
+        var spd = (r.speed != null && r.speed >= 0) ? r.speed.toFixed(0) : '--';
+        var cc = 'rider-card' + (esMi ? ' me' : '') + (est === 'inactivo' ? ' inactivo' : '') + (est === 'offline' ? ' offline' : '');
+        var dc, et, ec;
         if (esMi && est === 'activo') { dc = 'sdot mov'; et = 'Activo'; ec = 'color:var(--accent)'; }
         else if (est === 'activo') { dc = 'sdot on'; et = 'Activo'; ec = 'color:var(--accent)'; }
         else if (est === 'inactivo') { dc = 'sdot warn'; et = 'Inactivo'; ec = 'color:var(--warning)'; }
         else { dc = 'sdot off'; et = 'Offline'; ec = 'color:var(--muted)'; }
+        var bg = esMi ? '<span style="font-size:9px;padding:2px 7px;background:var(--accent-dim);color:var(--accent);border-radius:5px;font-weight:600;flex-shrink:0">TU</span>' : '';
+        var tt = rd.edad < 60000 ? Math.floor(rd.edad/1000)+'s' : rd.edad < 3600000 ? Math.floor(rd.edad/60000)+'m' : Math.floor(rd.edad/3600000)+'h';
 
-        const bg = esMi ? '<span style="font-size:9px;padding:2px 7px;background:var(--accent-dim);color:var(--accent);border-radius:5px;font-weight:600;flex-shrink:0">TU</span>' : '';
-        const tt = edad < 60000 ? Math.floor(edad/1000)+'s' : edad < 3600000 ? Math.floor(edad/60000)+'m' : Math.floor(edad/3600000)+'h';
-
-        html += `<div class="${cc}" data-rider="${id}"><div style="display:flex;align-items:center;gap:9px"><div style="width:30px;height:30px;background:${color};border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#0a0e17;flex-shrink:0">${(r.nombre||id).charAt(0).toUpperCase()}</div><div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:600;display:flex;align-items:center;gap:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.nombre||id} <span class="${dc}"></span></div><div style="font-size:10px;color:var(--muted);font-family:JetBrains Mono,monospace">${spd} km/h &middot; <span style="${ec}">${et}</span> <span style="opacity:.5">${tt}</span></div></div>${bg}</div></div>`;
+        html += '<div class="'+cc+'" data-rider="'+id+'"><div style="display:flex;align-items:center;gap:9px"><div style="width:30px;height:30px;background:'+color+';border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#0a0e17;flex-shrink:0">'+(r.nombre||id).charAt(0).toUpperCase()+'</div><div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:600;display:flex;align-items:center;gap:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+(r.nombre||id)+' <span class="'+dc+'"></span></div><div style="font-size:10px;color:var(--muted);font-family:JetBrains Mono,monospace">'+spd+' km/h &middot; <span style="'+ec+'">'+et+'</span> <span style="opacity:.5">'+tt+'</span></div></div>'+bg+'</div></div>';
 
         /* Marcador en mapa */
-        const ini = (r.nombre || id).charAt(0).toUpperCase();
+        var ini = (r.nombre || id).charAt(0).toUpperCase();
         if (markers[id]) {
           markers[id].setLatLng([r.lat, r.lng]);
         } else {
-          const iconCls = esMi ? 'cm me' : 'cm other';
-          const icon = L.divIcon({ className:'', html:`<div class="${iconCls}" ${esMi ? '' : `style="background:${color}"`}>${ini}</div>`, iconSize:[36,36], iconAnchor:[18,18] });
-          markers[id] = L.marker([r.lat, r.lng], {icon}).addTo(map);
+          var iconCls = esMi ? 'cm me' : 'cm other';
+          var icon = L.divIcon({ className:'', html:'<div class="'+iconCls+'" '+(esMi ? '' : 'style="background:'+color+'"')+'>'+ini+'</div>', iconSize:[36,36], iconAnchor:[18,18] });
+          markers[id] = L.marker([r.lat, r.lng], {icon:icon}).addTo(map);
           markers[id].bindTooltip(r.nombre || id, {permanent:false,direction:'top',offset:[0,-22],className:'ct'});
         }
 
         /* Ruta polyline */
         if (r.ruta && Array.isArray(r.ruta) && r.ruta.length > 1) {
-          const coords = [];
-          for (let j = 0; j < r.ruta.length; j++) { if (r.ruta[j].lat != null && r.ruta[j].lng != null) coords.push([r.ruta[j].lat, r.ruta[j].lng]); }
+          var coords = [];
+          for (var j = 0; j < r.ruta.length; j++) {
+            if (r.ruta[j].lat != null && r.ruta[j].lng != null) coords.push([r.ruta[j].lat, r.ruta[j].lng]);
+          }
           if (coords.length > 1) {
-            const op = est === 'activo' ? 0.5 : est === 'inactivo' ? 0.25 : 0.12;
+            var op = est === 'activo' ? 0.5 : est === 'inactivo' ? 0.25 : 0.12;
             if (rutas[id]) { rutas[id].setLatLngs(coords); rutas[id].setStyle({opacity:op}); }
-            else { rutas[id] = L.polyline(coords, { color, weight:3, opacity:op, smoothFactor:1 }).addTo(map); }
+            else { rutas[id] = L.polyline(coords, { color:color, weight:3, opacity:op, smoothFactor:1 }).addTo(map); }
           }
         }
       }
 
-      /* Limpiar riders que ya no existen */
       limpiarViejos(ids);
-
-      /* Event listeners para focus en mapa */
       el.innerHTML = html;
-      el.querySelectorAll('[data-rider]').forEach(card => {
-        card.addEventListener('click', () => focusRider(card.dataset.rider));
+
+      /* Delegacion de eventos para focus en mapa */
+      el.querySelectorAll('[data-rider]').forEach(function(card) {
+        card.addEventListener('click', function() { focusRider(card.dataset.rider); });
       });
 
       if (arr.length === 0) {
@@ -794,7 +813,7 @@
     }
 
     function limpiarViejos(ids) {
-      for (const oldId in markers) {
+      for (var oldId in markers) {
         if (!ids[oldId]) {
           if (markers[oldId] && map) map.removeLayer(markers[oldId]);
           if (rutas[oldId] && map) map.removeLayer(rutas[oldId]);
@@ -818,10 +837,10 @@
     ---------------------------------------------------------- */
     function iniciarClock() {
       function tick() {
-        const now = new Date();
-        const clockEl = document.getElementById('clock');
+        var now = new Date();
+        var clockEl = document.getElementById('clock');
         if (clockEl) clockEl.textContent = now.toLocaleTimeString('es-EC', {hour:'2-digit',minute:'2-digit',second:'2-digit'});
-        const el = Math.floor((Date.now() - startTime) / 1000);
+        var el = Math.floor((Date.now() - startTime) / 1000);
         document.getElementById('sTime').textContent = String(Math.floor(el/3600)).padStart(2,'0') + ':' + String(Math.floor((el%3600)/60)).padStart(2,'0');
       }
       tick();
@@ -832,22 +851,22 @@
        ADMIN
     ---------------------------------------------------------- */
     function toggleAdmin() {
-      const p = document.getElementById('admPnl'), o = document.getElementById('admOv');
+      var p = document.getElementById('admPnl'), o = document.getElementById('admOv');
       if (p.classList.contains('open')) { p.classList.remove('open'); o.classList.remove('open'); }
       else { refreshAdmList(); p.classList.add('open'); o.classList.add('open'); }
     }
 
     function crearUsuario() {
-      const nombre = document.getElementById('nName').value.trim();
-      const usuario = document.getElementById('nUser').value.trim().toLowerCase();
-      const password = document.getElementById('nPass').value.trim();
+      var nombre = document.getElementById('nName').value.trim();
+      var usuario = document.getElementById('nUser').value.trim().toLowerCase();
+      var password = document.getElementById('nPass').value.trim();
       if (!nombre) { toast('Ingresa el nombre completo', 'error'); return; }
       if (!usuario || usuario.length < 3) { toast('Usuario: minimo 3 caracteres', 'error'); return; }
       if (!password || password.length < 4) { toast('Contrasena: minimo 4 caracteres', 'error'); return; }
       if (/[^a-z0-9_]/.test(usuario)) { toast('Solo letras minusculas, numeros y guion bajo', 'error'); return; }
-      const usuarios = getUsuarios();
-      for (let i = 0; i < usuarios.length; i++) { if (usuarios[i].usuario === usuario) { toast('Este usuario ya existe', 'error'); return; } }
-      usuarios.push({ nombre, usuario, password, role:'user', created:Date.now() });
+      var usuarios = getUsuarios();
+      for (var i = 0; i < usuarios.length; i++) { if (usuarios[i].usuario === usuario) { toast('Este usuario ya existe', 'error'); return; } }
+      usuarios.push({ nombre:nombre, usuario:usuario, password:password, role:'user', created:Date.now() });
       setUsuarios(usuarios);
       document.getElementById('nName').value = ''; document.getElementById('nUser').value = ''; document.getElementById('nPass').value = '';
       refreshAdmList();
@@ -856,12 +875,12 @@
 
     function delUser(u) {
       if (!session || u === session.usuario) { toast('No puedes eliminarte a ti mismo', 'error'); return; }
-      const usuarios = getUsuarios();
-      let target = null, idx = -1;
-      for (let i = 0; i < usuarios.length; i++) { if (usuarios[i].usuario === u) { target = usuarios[i]; idx = i; break; } }
+      var usuarios = getUsuarios();
+      var target = null, idx = -1;
+      for (var i = 0; i < usuarios.length; i++) { if (usuarios[i].usuario === u) { target = usuarios[i]; idx = i; break; } }
       if (!target) return;
       if (target.role === 'admin') { toast('No se puede eliminar un admin', 'error'); return; }
-      deleteDoc(doc(db, "riders", u)).catch(() => {});
+      deleteDoc(doc(db, "riders", u)).catch(function(){});
       usuarios.splice(idx, 1);
       setUsuarios(usuarios);
       if (markers[u] && map) { map.removeLayer(markers[u]); delete markers[u]; }
@@ -871,30 +890,30 @@
     }
 
     function refreshAdmList() {
-      const usuarios = getUsuarios();
-      const box = document.getElementById('admList');
+      var usuarios = getUsuarios();
+      var box = document.getElementById('admList');
       if (!box) return;
-      let html = '';
-      if (usuarios.length === 0) { html = '<div class="empty-st"><i class="fas fa-users"></i><p>No hay usuarios</p></div>'; }
-      else {
-        for (let i = 0; i < usuarios.length; i++) {
-          const u = usuarios[i];
-          const isAdmin = u.role === 'admin';
-          const isMe = session && u.usuario === session.usuario;
-          const badge = isAdmin
+      var html = '';
+      if (usuarios.length === 0) {
+        html = '<div class="empty-st"><i class="fas fa-users"></i><p>No hay usuarios</p></div>';
+      } else {
+        for (var i = 0; i < usuarios.length; i++) {
+          var u = usuarios[i];
+          var isAdmin = u.role === 'admin';
+          var isMe = session && u.usuario === session.usuario;
+          var badge = isAdmin
             ? '<span style="font-size:9px;padding:2px 7px;background:var(--accent-dim);color:var(--accent);border-radius:4px;font-weight:600">ADMIN</span>'
             : '<span style="font-size:9px;padding:2px 7px;background:rgba(0,229,255,.12);color:var(--info);border-radius:4px;font-weight:600">RIDER</span>';
-          const bg = isAdmin ? 'var(--accent)' : 'var(--info)';
-          const canDel = !isAdmin && !isMe;
-          const meLabel = isMe ? ' <span style="font-size:9px;color:var(--muted)">(tu)</span>' : '';
-          const delBtn = canDel ? `<button class="del-btn" data-deluser="${u.usuario}" title="Eliminar"><i class="fas fa-trash-alt"></i></button>` : '';
-          html += `<div class="adm-u"><div style="display:flex;align-items:center;gap:9px;min-width:0"><div style="width:30px;height:30px;background:${bg};border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#0a0e17;flex-shrink:0">${u.nombre.charAt(0)}</div><div style="min-width:0"><div style="font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${u.nombre}${meLabel}</div><div style="font-size:10px;color:var(--muted);font-family:JetBrains Mono,monospace">@${u.usuario} ${badge}</div></div></div>${delBtn}</div>`;
+          var bg = isAdmin ? 'var(--accent)' : 'var(--info)';
+          var canDel = !isAdmin && !isMe;
+          var meLabel = isMe ? ' <span style="font-size:9px;color:var(--muted)">(tu)</span>' : '';
+          var delBtn = canDel ? '<button class="del-btn" data-deluser="'+u.usuario+'" title="Eliminar"><i class="fas fa-trash-alt"></i></button>' : '';
+          html += '<div class="adm-u"><div style="display:flex;align-items:center;gap:9px;min-width:0"><div style="width:30px;height:30px;background:'+bg+';border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#0a0e17;flex-shrink:0">'+u.nombre.charAt(0)+'</div><div style="min-width:0"><div style="font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+u.nombre+meLabel+'</div><div style="font-size:10px;color:var(--muted);font-family:JetBrains Mono,monospace">@'+u.usuario+' '+badge+'</div></div></div>'+delBtn+'</div>';
         }
       }
       box.innerHTML = html;
-      /* Event listeners para botones de eliminar */
-      box.querySelectorAll('[data-deluser]').forEach(btn => {
-        btn.addEventListener('click', (e) => { e.stopPropagation(); delUser(btn.dataset.deluser); });
+      box.querySelectorAll('[data-deluser]').forEach(function(btn) {
+        btn.addEventListener('click', function(e) { e.stopPropagation(); delUser(btn.dataset.deluser); });
       });
     }
   </script>
