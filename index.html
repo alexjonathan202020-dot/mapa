@@ -1,0 +1,782 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Riders Tracker PRO</title>
+
+  <!-- Firebase Compat SDK -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+
+  <!-- Leaflet -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- UI -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <script>tailwind.config={theme:{extend:{fontFamily:{display:['Space Grotesk','sans-serif'],mono:['JetBrains Mono','monospace']}}}}</script>
+  <style>
+    :root{--bg:#0a0e17;--fg:#e8edf5;--muted:#5a6a85;--accent:#00ff88;--accent-dim:rgba(0,255,136,.12);--card:#111827;--card-h:#1a2235;--border:#1e293b;--danger:#ff3b5c;--warning:#ffe600;--info:#00e5ff}
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:'Space Grotesk',sans-serif;background:var(--bg);color:var(--fg);overflow:hidden;height:100vh}
+    ::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:var(--bg)}::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+    .login-screen{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:1000;background:var(--bg);transition:opacity .5s}
+    .login-bg{position:absolute;inset:0;overflow:hidden}
+    .login-bg::before,.login-bg::after{content:'';position:absolute;border-radius:50%;filter:blur(130px);animation:bf 9s ease-in-out infinite}
+    .login-bg::before{width:500px;height:500px;background:rgba(0,255,136,.07);top:-120px;right:-80px}
+    .login-bg::after{width:420px;height:420px;background:rgba(0,229,255,.05);bottom:-100px;left:-80px;animation-delay:-4.5s}
+    @keyframes bf{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(25px,-25px) scale(1.08)}}
+    .grid-ov{position:absolute;inset:0;background-image:linear-gradient(rgba(0,255,136,.02) 1px,transparent 1px),linear-gradient(90deg,rgba(0,255,136,.02) 1px,transparent 1px);background-size:60px 60px;animation:gm 25s linear infinite}
+    @keyframes gm{to{transform:translate(60px,60px)}}
+    .login-card{position:relative;background:var(--card);border:1px solid var(--border);border-radius:20px;padding:44px 36px;width:100%;max-width:410px}
+    .login-card input{width:100%;padding:13px 16px;background:var(--bg);border:1px solid var(--border);border-radius:11px;color:var(--fg);font-family:'Space Grotesk',sans-serif;font-size:15px;outline:none;transition:border-color .3s,box-shadow .3s}
+    .login-card input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-dim)}
+    .btn-p{width:100%;padding:13px;background:var(--accent);color:#0a0e17;border:none;border-radius:11px;font-family:'Space Grotesk',sans-serif;font-size:15px;font-weight:600;cursor:pointer;transition:all .3s}
+    .btn-p:hover{transform:translateY(-2px);box-shadow:0 8px 30px rgba(0,255,136,.3)}
+    .btn-p:active{transform:translateY(0)}
+    .err-msg{color:var(--danger);font-size:13px;margin-top:8px;display:none;align-items:center;gap:6px}
+    .err-msg.show{display:flex}
+    @keyframes shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-8px)}40%{transform:translateX(8px)}60%{transform:translateX(-8px)}80%{transform:translateX(8px)}}
+    .app-layout{display:none;height:100vh;grid-template-columns:310px 1fr;grid-template-rows:56px 1fr}
+    .app-layout.active{display:grid}
+    .topbar{grid-column:1/-1;background:var(--card);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 20px;z-index:10}
+    .sidebar{background:var(--card);border-right:1px solid var(--border);overflow-y:auto;padding:18px}
+    .map-container{position:relative}
+    #map{width:100%;height:100%}
+    .rider-card{background:var(--bg);border:1px solid var(--border);border-radius:11px;padding:12px 14px;margin-bottom:8px;cursor:pointer;transition:all .25s}
+    .rider-card:hover{border-color:rgba(0,255,136,.4);background:var(--card-h)}
+    .rider-card.me{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent-dim)}
+    .rider-card.inactivo{opacity:.5}
+    .sdot{width:7px;height:7px;border-radius:50%;display:inline-block;flex-shrink:0}
+    .sdot.on{background:var(--accent);box-shadow:0 0 6px var(--accent)}
+    .sdot.off{background:var(--muted)}
+    .sdot.mov{background:var(--accent);box-shadow:0 0 6px var(--accent);animation:pls 1.5s infinite}
+    @keyframes pls{0%,100%{opacity:1}50%{opacity:.4}}
+    .cm{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;color:#0a0e17;border:2.5px solid rgba(255,255,255,.2);box-shadow:0 3px 14px rgba(0,0,0,.5)}
+    .cm.me{background:var(--accent)!important;animation:mp 2s infinite}
+    .cm.other{background:var(--info)}
+    @keyframes mp{0%,100%{box-shadow:0 3px 14px rgba(0,255,136,.35)}50%{box-shadow:0 3px 24px rgba(0,255,136,.7)}}
+    .st-c{background:var(--bg);border:1px solid var(--border);border-radius:11px;padding:14px 10px;text-align:center}
+    .st-v{font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:700;color:var(--accent)}
+    .st-l{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin-top:3px}
+    .map-ov{position:absolute;bottom:20px;left:20px;z-index:400;display:flex;gap:10px;flex-wrap:wrap}
+    .map-bg{background:rgba(17,24,39,.92);backdrop-filter:blur(8px);border:1px solid var(--border);border-radius:9px;padding:8px 14px;display:flex;align-items:center;gap:7px;font-size:12px;font-family:'JetBrains Mono',monospace}
+    .fb-dot{width:8px;height:8px;border-radius:50%;background:var(--accent);animation:fbp 2s infinite}
+    .fb-dot.err{background:var(--danger);animation:none}
+    @keyframes fbp{0%,100%{opacity:.3;transform:scale(.8)}50%{opacity:1;transform:scale(1.2)}}
+    .adm-pnl{position:fixed;top:0;right:-420px;width:400px;height:100vh;background:var(--card);border-left:1px solid var(--border);z-index:500;transition:right .4s cubic-bezier(.16,1,.3,1);overflow-y:auto;padding:24px}
+    .adm-pnl.open{right:0}
+    .adm-ov{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:499;opacity:0;pointer-events:none;transition:opacity .3s}
+    .adm-ov.open{opacity:1;pointer-events:all}
+    .adm-in{width:100%;padding:10px 14px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--fg);font-family:'Space Grotesk',sans-serif;font-size:14px;outline:none;transition:border-color .2s}
+    .adm-in:focus{border-color:var(--accent)}
+    .adm-u{display:flex;align-items:center;justify-content:space-between;padding:11px 14px;background:var(--bg);border:1px solid var(--border);border-radius:9px;margin-bottom:7px;transition:border-color .2s}
+    .adm-u:hover{border-color:rgba(0,255,136,.3)}
+    .del-btn{background:none;border:none;color:var(--danger);cursor:pointer;opacity:.5;transition:opacity .2s;font-size:13px;padding:4px}
+    .del-btn:hover{opacity:1}
+    .empty-st{text-align:center;padding:40px 16px;color:var(--muted)}
+    .empty-st i{font-size:40px;margin-bottom:14px;opacity:.3}
+    .empty-st p{font-size:13px;line-height:1.6}
+    .toast-c{position:fixed;top:72px;right:20px;z-index:2000;display:flex;flex-direction:column;gap:8px}
+    .toast{background:var(--card);border:1px solid var(--border);border-radius:11px;padding:12px 18px;display:flex;align-items:center;gap:10px;min-width:280px;animation:tI .4s cubic-bezier(.16,1,.3,1);box-shadow:0 8px 30px rgba(0,0,0,.35)}
+    .toast.success{border-left:3px solid var(--accent)}.toast.error{border-left:3px solid var(--danger)}.toast.warning{border-left:3px solid var(--warning)}.toast.info{border-left:3px solid var(--info)}
+    .toast.out{animation:tO .3s ease forwards}
+    @keyframes tI{from{transform:translateX(120%);opacity:0}to{transform:translateX(0);opacity:1}}
+    @keyframes tO{to{transform:translateX(120%);opacity:0}}
+    .btn-sm{padding:6px 12px;background:var(--bg);border:1px solid var(--border);border-radius:7px;color:var(--muted);font-family:'Space Grotesk',sans-serif;font-size:11px;cursor:pointer;transition:all .2s}
+    .btn-sm:hover{border-color:var(--danger);color:var(--danger)}
+    .leaflet-container{background:var(--bg)!important}
+    .leaflet-control-zoom a{background:var(--card)!important;color:var(--fg)!important;border-color:var(--border)!important}
+    .leaflet-control-zoom a:hover{background:var(--card-h)!important}
+    .leaflet-control-attribution{background:rgba(10,14,23,.8)!important;color:var(--muted)!important;font-size:9px!important}
+    .leaflet-control-attribution a{color:var(--accent)!important}
+    .ct{background:var(--card)!important;border:1px solid var(--border)!important;color:var(--fg)!important;border-radius:8px!important;padding:5px 11px!important;font-family:'Space Grotesk',sans-serif!important;font-size:12px!important;font-weight:500!important;box-shadow:0 4px 12px rgba(0,0,0,.3)!important}
+    .ct::before{border-top-color:var(--border)!important}
+    @media(max-width:768px){
+      .app-layout{grid-template-columns:1fr;grid-template-rows:56px 1fr 190px}
+      .sidebar{order:3;border-right:none;border-top:1px solid var(--border)}
+      .adm-pnl{width:100%;right:-100%}
+      .login-card{margin:16px;padding:30px 22px}
+      .map-ov{flex-direction:column;bottom:10px;left:10px}
+      .map-bg{font-size:11px;padding:6px 10px}
+    }
+    @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+  </style>
+</head>
+<body>
+
+  <div class="toast-c" id="toastBox"></div>
+
+  <!-- LOGIN -->
+  <div class="login-screen" id="loginScreen">
+    <div class="login-bg"><div class="grid-ov"></div></div>
+    <div class="login-card" id="loginCard">
+      <div style="text-align:center;margin-bottom:32px">
+        <div style="width:60px;height:60px;background:var(--accent-dim);border-radius:14px;display:inline-flex;align-items:center;justify-content:center;margin-bottom:14px">
+          <i class="fas fa-route" style="font-size:26px;color:var(--accent)"></i>
+        </div>
+        <h1 style="font-size:24px;font-weight:700;letter-spacing:-.4px">Riders Tracker PRO</h1>
+        <p style="color:var(--muted);font-size:13px;margin-top:5px">Seguimiento en tiempo real con Firebase</p>
+      </div>
+      <form id="loginForm" onsubmit="return handleLogin(event)">
+        <div style="margin-bottom:14px">
+          <label style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:5px">Usuario</label>
+          <input type="text" id="loginUser" placeholder="Ingresa tu usuario" autocomplete="username" required>
+        </div>
+        <div style="margin-bottom:6px">
+          <label style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:5px">Contrasena</label>
+          <div style="position:relative">
+            <input type="password" id="loginPass" placeholder="Ingresa tu contrasena" autocomplete="current-password" required>
+            <button type="button" onclick="togglePass()" style="position:absolute;right:14px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px" aria-label="Mostrar contrasena"><i class="fas fa-eye" id="passIcon"></i></button>
+          </div>
+        </div>
+        <div class="err-msg" id="loginErr"><i class="fas fa-exclamation-circle"></i><span>Credenciales incorrectas</span></div>
+        <div style="margin-top:22px"><button type="submit" class="btn-p"><i class="fas fa-sign-in-alt" style="margin-right:7px"></i>Ingresar</button></div>
+      </form>
+      <p style="text-align:center;color:var(--muted);font-size:11px;margin-top:22px"><i class="fas fa-shield-alt" style="margin-right:4px"></i>Conexion segura via Firebase</p>
+    </div>
+  </div>
+
+  <!-- APP -->
+  <div class="app-layout" id="appLayout">
+    <header class="topbar">
+      <div style="display:flex;align-items:center;gap:12px">
+        <div style="width:34px;height:34px;background:var(--accent-dim);border-radius:9px;display:flex;align-items:center;justify-content:center">
+          <i class="fas fa-route" style="color:var(--accent);font-size:14px"></i>
+        </div>
+        <span style="font-weight:600;font-size:15px" class="hidden sm:inline">Riders Tracker PRO</span>
+        <div style="display:flex;align-items:center;gap:5px;margin-left:8px;font-size:11px;color:var(--muted)">
+          <div class="fb-dot" id="fbDot"></div><span id="fbStatus">Conectando...</span>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px">
+        <span id="clock" style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--muted)" class="hidden sm:inline"></span>
+        <div id="adminBtn" style="display:none;cursor:pointer" onclick="toggleAdmin()" title="Panel administrador">
+          <div style="width:34px;height:34px;background:var(--accent-dim);border-radius:9px;display:flex;align-items:center;justify-content:center;transition:background .2s" onmouseover="this.style.background='rgba(0,255,136,.25)'" onmouseout="this.style.background='var(--accent-dim)'">
+            <i class="fas fa-crown" style="color:var(--accent);font-size:13px"></i>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;cursor:pointer" onclick="handleLogout()" title="Cerrar sesion">
+          <div style="width:34px;height:34px;background:var(--bg);border:1px solid var(--border);border-radius:9px;display:flex;align-items:center;justify-content:center">
+            <i class="fas fa-user" style="color:var(--fg);font-size:12px"></i>
+          </div>
+          <div class="hidden sm:block">
+            <div style="font-size:12px;font-weight:600" id="topUser"></div>
+            <div style="font-size:10px;color:var(--muted)">Cerrar sesion</div>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <aside class="sidebar">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:18px">
+        <div class="st-c"><div class="st-v" id="sRiders">0</div><div class="st-l">Riders activos</div></div>
+        <div class="st-c"><div class="st-v" id="sSpeed">0</div><div class="st-l">km/h</div></div>
+        <div class="st-c"><div class="st-v" id="sDist">0.0</div><div class="st-l">km recorridos</div></div>
+        <div class="st-c"><div class="st-v" id="sTime">00:00</div><div class="st-l">Tiempo activo</div></div>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+        <h3 style="font-size:13px;font-weight:600">Riders en mapa</h3>
+        <div style="display:flex;gap:6px">
+          <button onclick="centerMe()" style="background:none;border:none;color:var(--accent);cursor:pointer;font-size:11px;font-family:'Space Grotesk',sans-serif"><i class="fas fa-crosshairs" style="margin-right:3px"></i>Mi ubicacion</button>
+          <button onclick="limpiarRuta()" class="btn-sm" title="Limpiar mi ruta"><i class="fas fa-eraser"></i></button>
+        </div>
+      </div>
+      <div id="riderList"></div>
+    </aside>
+
+    <main class="map-container">
+      <div id="map"></div>
+      <div class="map-ov">
+        <div class="map-bg"><i class="fas fa-satellite-dish" style="color:var(--accent)"></i><span id="gpsTxt">GPS: Buscando...</span></div>
+        <div class="map-bg"><i class="fas fa-map-marker-alt" style="color:var(--info)"></i><span id="coordTxt">--, --</span></div>
+        <div class="map-bg"><i class="fas fa-database" style="color:var(--muted);font-size:10px"></i><span>Firebase RT</span></div>
+      </div>
+    </main>
+  </div>
+
+  <!-- ADMIN PANEL -->
+  <div class="adm-ov" id="admOv" onclick="toggleAdmin()"></div>
+  <aside class="adm-pnl" id="admPnl" role="dialog" aria-label="Panel de administracion">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:26px">
+      <div><h2 style="font-size:19px;font-weight:700">Panel Admin</h2><p style="font-size:12px;color:var(--muted);margin-top:2px">Gestion de usuarios</p></div>
+      <button onclick="toggleAdmin()" style="width:34px;height:34px;background:var(--bg);border:1px solid var(--border);border-radius:9px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--fg)" aria-label="Cerrar"><i class="fas fa-times"></i></button>
+    </div>
+    <div style="background:var(--bg);border:1px solid var(--border);border-radius:13px;padding:18px;margin-bottom:22px">
+      <h3 style="font-size:13px;font-weight:600;margin-bottom:14px"><i class="fas fa-user-plus" style="color:var(--accent);margin-right:7px"></i>Nuevo usuario</h3>
+      <div style="margin-bottom:10px"><label style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;display:block;margin-bottom:3px">Nombre completo</label><input type="text" id="nName" class="adm-in" placeholder="Ej: Ana Martinez"></div>
+      <div style="margin-bottom:10px"><label style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;display:block;margin-bottom:3px">Usuario</label><input type="text" id="nUser" class="adm-in" placeholder="Ej: amartinez"></div>
+      <div style="margin-bottom:14px"><label style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;display:block;margin-bottom:3px">Contrasena</label><input type="text" id="nPass" class="adm-in" placeholder="Contrasena"></div>
+      <button onclick="crearUsuario()" class="btn-p" style="font-size:13px;padding:11px"><i class="fas fa-plus" style="margin-right:7px"></i>Crear usuario</button>
+    </div>
+    <div>
+      <h3 style="font-size:13px;font-weight:600;margin-bottom:12px"><i class="fas fa-users" style="color:var(--info);margin-right:7px"></i>Usuarios registrados</h3>
+      <div id="admList"></div>
+    </div>
+  </aside>
+
+  <script>
+    /* ==========================================================
+       TOAST
+    ========================================================== */
+    function toast(msg, type) {
+      type = type || 'info';
+      var c = document.getElementById('toastBox');
+      var t = document.createElement('div');
+      t.className = 'toast ' + type;
+      var icons = {success:'fa-check-circle',error:'fa-times-circle',warning:'fa-exclamation-triangle',info:'fa-info-circle'};
+      var colors = {success:'var(--accent)',error:'var(--danger)',warning:'var(--warning)',info:'var(--info)'};
+      t.innerHTML = '<i class="fas '+icons[type]+'" style="color:'+colors[type]+';font-size:16px;flex-shrink:0"></i><span style="font-size:13px">'+msg+'</span>';
+      c.appendChild(t);
+      setTimeout(function(){t.classList.add('out');setTimeout(function(){t.remove()},300)},3500);
+    }
+
+    /* ==========================================================
+       SEED + MIGRACION (localStorage para credenciales de login)
+    ========================================================== */
+    function seedAdmin() {
+      try {
+        var raw = localStorage.getItem("rt_users");
+        if (!raw) {
+          var seed = [{nombre:"Juan Criollo",usuario:"jcriollo",password:"clavito01",role:"admin",created:Date.now()}];
+          localStorage.setItem("rt_users", JSON.stringify(seed));
+          return;
+        }
+        var datos = JSON.parse(raw);
+        /* Migrar de formato objeto viejo a array */
+        if (datos !== null && typeof datos === 'object' && !Array.isArray(datos)) {
+          var migrado = [];
+          var claves = Object.keys(datos);
+          for (var i = 0; i < claves.length; i++) {
+            var k = claves[i], v = datos[k];
+            migrado.push({nombre:v.name||v.nombre||k, usuario:k, password:v.password||"", role:v.role||"user", created:v.created||Date.now()});
+          }
+          localStorage.setItem("rt_users", JSON.stringify(migrado));
+          return;
+        }
+        if (Array.isArray(datos) && datos.length === 0) {
+          var seed2 = [{nombre:"Juan Criollo",usuario:"jcriollo",password:"clavito01",role:"admin",created:Date.now()}];
+          localStorage.setItem("rt_users", JSON.stringify(seed2));
+        }
+      } catch(e) {
+        var seed3 = [{nombre:"Juan Criollo",usuario:"jcriollo",password:"clavito01",role:"admin",created:Date.now()}];
+        localStorage.setItem("rt_users", JSON.stringify(seed3));
+      }
+    }
+    seedAdmin();
+
+    function getUsuarios() {
+      try { var d = JSON.parse(localStorage.getItem("rt_users")); if (Array.isArray(d)) return d; } catch(e){}
+      seedAdmin();
+      try { return JSON.parse(localStorage.getItem("rt_users")); } catch(e2){ return []; }
+    }
+    function setUsuarios(u) { localStorage.setItem("rt_users", JSON.stringify(u)); }
+    function getSession() { try { return JSON.parse(localStorage.getItem("rt_session")); } catch(e){ return null; } }
+    function setSession(u) { localStorage.setItem("rt_session", JSON.stringify(u)); }
+    function clearSession() { localStorage.removeItem("rt_session"); }
+
+    /* ==========================================================
+       FIREBASE INIT — Tus credenciales reales
+    ========================================================== */
+    var firebaseConfig = {
+      apiKey: "AIzaSyAov1tlSvMc8VNfwKbYLDgNftDLUK390Tw",
+      authDomain: "mapa-c26d7.firebaseapp.com",
+      databaseURL: "https://mapa-c26d7-default-rtdb.firebaseio.com/",
+      projectId: "mapa-c26d7",
+      storageBucket: "mapa-c26d7.appspot.com",
+      messagingSenderId: "731287849216",
+      appId: "1:731287849216:web:b24c8cbc0b9aa609a04be5"
+    };
+    firebase.initializeApp(firebaseConfig);
+    var db = firebase.database();
+
+    /* Verificar conexion a Firebase */
+    var fbConnected = false;
+    db.ref(".info/connected").on("value", function(snap) {
+      fbConnected = snap.val() === true;
+      var dot = document.getElementById("fbDot");
+      var txt = document.getElementById("fbStatus");
+      if (fbConnected) {
+        dot.classList.remove("err");
+        txt.textContent = "Firebase: Conectado";
+      } else {
+        dot.classList.add("err");
+        txt.textContent = "Firebase: Desconectado";
+      }
+    });
+
+    /* ==========================================================
+       PALETA DE COLORES PARA RIDERS
+    ========================================================== */
+    var PALETA = ['#00ff88','#00e5ff','#ff6b35','#ffe600','#ff3b8b','#a78bfa','#34d399','#f97316','#22d3ee','#f43f5e'];
+
+    function colorRider(id) {
+      var h = 0;
+      for (var i = 0; i < id.length; i++) h = id.charCodeAt(i) + ((h << 5) - h);
+      return PALETA[Math.abs(h) % PALETA.length];
+    }
+
+    /* ==========================================================
+       ESTADO GLOBAL
+    ========================================================== */
+    var map = null;
+    var markers = {};
+    var rutas = {};
+    var watchId = null;
+    var clockInterval = null;
+    var gpsTimeout = null;
+    var firebaseListener = null;
+    var startTime = Date.now();
+    var totalDist = 0;
+    var lastGPSPos = null;
+    var mapCentered = false;
+    var miRuta = [];
+    var rutaInicializada = false;
+    var session = null;
+
+    /* ==========================================================
+       HAVERSINE
+    ========================================================== */
+    function haversine(lat1, lon1, lat2, lon2) {
+      var R = 6371;
+      var dLat = (lat2-lat1)*Math.PI/180, dLon = (lon2-lon1)*Math.PI/180;
+      var a = Math.sin(dLat/2)*Math.sin(dLat/2)+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)*Math.sin(dLon/2);
+      return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+    }
+
+    /* ==========================================================
+       LOGIN
+    ========================================================== */
+    function handleLogin(e) {
+      e.preventDefault();
+      var usuario = document.getElementById('loginUser').value.trim().toLowerCase();
+      var password = document.getElementById('loginPass').value;
+      var errEl = document.getElementById('loginErr');
+      var usuarios = getUsuarios();
+      var user = null;
+      for (var i = 0; i < usuarios.length; i++) {
+        if (usuarios[i].usuario === usuario && usuarios[i].password === password) { user = usuarios[i]; break; }
+      }
+      if (user) {
+        errEl.classList.remove('show');
+        session = user;
+        setSession(user);
+        var ls = document.getElementById('loginScreen');
+        ls.style.opacity = '0';
+        setTimeout(function() {
+          ls.style.display = 'none';
+          document.getElementById('appLayout').classList.add('active');
+          document.getElementById('topUser').textContent = user.nombre;
+          if (user.role === 'admin') document.getElementById('adminBtn').style.display = 'block';
+          initMap();
+          iniciarGPS();
+          iniciarFirebaseListener();
+          iniciarClock();
+          toast('Bienvenido, ' + user.nombre, 'success');
+        }, 450);
+      } else {
+        errEl.classList.add('show');
+        var card = document.getElementById('loginCard');
+        card.style.animation = 'shake .45s';
+        setTimeout(function(){card.style.animation=''},500);
+      }
+      return false;
+    }
+
+    function togglePass() {
+      var inp = document.getElementById('loginPass'), ico = document.getElementById('passIcon');
+      if (inp.type==='password'){inp.type='text';ico.className='fas fa-eye-slash';}
+      else{inp.type='password';ico.className='fas fa-eye';}
+    }
+
+    function handleLogout() {
+      if (session) {
+        /* Eliminar datos del rider de Firebase al cerrar sesion */
+        db.ref("riders/" + session.usuario).remove(function(err) {
+          if (err) console.warn("Error al eliminar de Firebase:", err);
+        });
+      }
+      clearSession();
+      if (watchId) { navigator.geolocation.clearWatch(watchId); watchId = null; }
+      if (clockInterval) { clearInterval(clockInterval); clockInterval = null; }
+      if (gpsTimeout) { clearTimeout(gpsTimeout); gpsTimeout = null; }
+      if (firebaseListener) { db.ref("riders").off("value", firebaseListener); firebaseListener = null; }
+      for (var id in markers) { if (markers[id]) map.removeLayer(markers[id]); }
+      for (var id2 in rutas) { if (rutas[id2]) map.removeLayer(rutas[id2]); }
+      markers = {}; rutas = {}; map = null; mapCentered = false;
+      totalDist = 0; lastGPSPos = null; miRuta = []; rutaInicializada = false; startTime = Date.now(); session = null;
+      document.getElementById('appLayout').classList.remove('active');
+      var ls = document.getElementById('loginScreen');
+      ls.style.display = 'flex'; ls.style.opacity = '1';
+      document.getElementById('loginPass').value = '';
+      document.getElementById('adminBtn').style.display = 'none';
+      toast('Sesion cerrada', 'info');
+    }
+
+    document.getElementById('loginUser').addEventListener('keydown', function(e){if(e.key==='Enter')document.getElementById('loginPass').focus()});
+    window.addEventListener('load', function(){document.getElementById('loginUser').focus()});
+
+    /* ==========================================================
+       MAPA (Leaflet + CartoDB Dark)
+    ========================================================== */
+    function initMap() {
+      map = L.map('map',{center:[-2.17,-79.92],zoom:13,zoomControl:true});
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{
+        attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',
+        subdomains:'abcd',maxZoom:20
+      }).addTo(map);
+      setTimeout(function(){map.invalidateSize()},150);
+      window.addEventListener('resize',function(){if(map)map.invalidateSize()});
+    }
+
+    /* ==========================================================
+       GPS TRACKING → Escribe a Firebase
+       CLAVE: Cada actualizacion GPS escribe la posicion
+       del usuario logueado a Firebase en tiempo real
+    ========================================================== */
+    function iniciarGPS() {
+      if (!navigator.geolocation) {
+        toast('Tu navegador no soporta geolocalizacion','error');
+        document.getElementById('gpsTxt').textContent = 'GPS: No disponible';
+        return;
+      }
+      document.getElementById('gpsTxt').textContent = 'GPS: Buscando senal...';
+
+      gpsTimeout = setTimeout(function(){
+        document.getElementById('gpsTxt').textContent = 'GPS: Sin senal';
+        toast('No se obtuvo senal GPS','warning');
+      },15000);
+
+      watchId = navigator.geolocation.watchPosition(
+        function(pos) {
+          if (gpsTimeout) { clearTimeout(gpsTimeout); gpsTimeout = null; }
+          var lat = pos.coords.latitude;
+          var lng = pos.coords.longitude;
+          var accuracy = pos.coords.accuracy;
+          var speed = pos.coords.speed;
+
+          /* Actualizar stats locales */
+          if (lastGPSPos) {
+            var d = haversine(lastGPSPos.lat,lastGPSPos.lng,lat,lng);
+            if (d > 0.005) totalDist += d;
+          }
+          lastGPSPos = {lat:lat,lng:lng};
+          var skmh = (speed !== null) ? (speed*3.6).toFixed(0) : '0';
+          document.getElementById('sSpeed').textContent = skmh;
+          document.getElementById('sDist').textContent = totalDist.toFixed(2);
+          document.getElementById('coordTxt').textContent = lat.toFixed(5)+', '+lng.toFixed(5);
+
+          if (accuracy<10) document.getElementById('gpsTxt').textContent='GPS: Excelente ('+Math.round(accuracy)+'m)';
+          else if(accuracy<30) document.getElementById('gpsTxt').textContent='GPS: Bueno ('+Math.round(accuracy)+'m)';
+          else if(accuracy<100) document.getElementById('gpsTxt').textContent='GPS: Regular ('+Math.round(accuracy)+'m)';
+          else document.getElementById('gpsTxt').textContent='GPS: Bajo ('+Math.round(accuracy)+'m)';
+
+          if (!mapCentered) { map.setView([lat,lng],16); mapCentered=true; }
+
+          /* ============================================
+             ESCRIBIR A FIREBASE
+             La primera vez carga la ruta existente,
+             luego agrega el nuevo punto
+          ============================================ */
+          if (!rutaInicializada) {
+            rutaInicializada = true;
+            db.ref("riders/" + session.usuario).once("value").then(function(snap) {
+              var data = snap.val();
+              if (data && data.ruta && Array.isArray(data.ruta)) {
+                miRuta = data.ruta.slice(-300);
+              }
+              escribirFirebase(lat, lng, speed);
+            }).catch(function(err) {
+              console.warn("Error cargando ruta previa:", err);
+              escribirFirebase(lat, lng, speed);
+            });
+          } else {
+            escribirFirebase(lat, lng, speed);
+          }
+        },
+        function(err) {
+          if (gpsTimeout){clearTimeout(gpsTimeout);gpsTimeout=null;}
+          var msgs={1:'Permiso de ubicacion denegado',2:'Ubicacion no disponible',3:'Tiempo de espera agotado'};
+          toast(msgs[err.code]||'Error de GPS','warning');
+          document.getElementById('gpsTxt').textContent='GPS: Sin senal';
+        },
+        {enableHighAccuracy:true,maximumAge:5000,timeout:15000}
+      );
+    }
+
+    /* Escribe posicion + ruta a Firebase */
+    function escribirFirebase(lat, lng, speed) {
+      miRuta.push({lat:lat,lng:lng,time:Date.now()});
+      /* Limitar ruta a ultimos 300 puntos para no saturar Firebase */
+      if (miRuta.length > 300) miRuta = miRuta.slice(-300);
+
+      db.ref("riders/" + session.usuario).set({
+        nombre: session.nombre,
+        lat: lat,
+        lng: lng,
+        speed: (speed !== null) ? (speed * 3.6) : null,
+        ruta: miRuta,
+        timestamp: Date.now()
+      }).catch(function(err) {
+        console.warn("Error escribiendo Firebase:", err);
+      });
+    }
+
+    /* Limpiar ruta del usuario actual */
+    function limpiarRuta() {
+      if (!session) return;
+      miRuta = [];
+      lastGPSPos = null;
+      totalDist = 0;
+      document.getElementById('sDist').textContent = '0.0';
+
+      db.ref("riders/" + session.usuario + "/ruta").set([]).catch(function(err){
+        console.warn("Error limpiando ruta:",err);
+      });
+      toast('Ruta limpiada','info');
+    }
+
+    /* ==========================================================
+       FIREBASE LISTENER → Render en tiempo real
+       Escucha TODOS los riders y actualiza mapa + lista
+    ========================================================== */
+    var lastRenderTime = 0;
+
+    function iniciarFirebaseListener() {
+      firebaseListener = function(snapshot) {
+        /* Throttle: no renderizar mas de una vez por segundo */
+        var ahora = Date.now();
+        if (ahora - lastRenderTime < 1000) return;
+        lastRenderTime = ahora;
+
+        var riders = snapshot.val();
+        renderRidersDesdeFirebase(riders);
+      };
+      db.ref("riders").on("value", firebaseListener);
+    }
+
+    function renderRidersDesdeFirebase(riders) {
+      if (!riders || typeof riders !== 'object') {
+        /* No hay riders — limpiar todo */
+        for (var id in markers) { if(markers[id]) map.removeLayer(markers[id]); }
+        for (var id2 in rutas) { if(rutas[id2]) map.removeLayer(rutas[id2]); }
+        markers = {}; rutas = {};
+        document.getElementById('riderList').innerHTML =
+          '<div class="empty-st"><i class="fas fa-satellite-dish"></i>'
+          +'<p>No hay riders activos.<br>Abre esta pagina en otro dispositivo para probar el seguimiento en tiempo real.</p></div>';
+        document.getElementById('sRiders').textContent = '0';
+        return;
+      }
+
+      var listaEl = document.getElementById('riderList');
+      var html = '';
+      var activos = 0;
+      var idsEnFirebase = {};
+      var ahora = Date.now();
+
+      for (var id in riders) {
+        var r = riders[id];
+        if (!r || r.lat == null || r.lng == null) continue;
+
+        idsEnFirebase[id] = true;
+
+        /* Estado: activo si su ultimo update es menor a 10 segundos */
+        var esActivo = r.timestamp && (ahora - r.timestamp) < 10000;
+        var esMi = session && id === session.usuario;
+        var color = esMi ? '#00ff88' : colorRider(id);
+        var spd = (r.speed !== null && r.speed !== undefined) ? r.speed.toFixed(0) : '--';
+
+        if (esActivo) activos++;
+
+        /* === SIDEBAR CARD === */
+        var cardCls = 'rider-card' + (esMi ? ' me' : '') + (!esActivo ? ' inactivo' : '');
+        var dotCls = esMi ? 'sdot mov' : (esActivo ? 'sdot on' : 'sdot off');
+        var estadoTxt = esActivo ? 'Activo' : 'Inactivo';
+        var estadoColor = esActivo ? 'color:var(--accent)' : 'color:var(--muted)';
+        var badge = esMi
+          ? '<span style="font-size:9px;padding:2px 7px;background:var(--accent-dim);color:var(--accent);border-radius:5px;font-weight:600;flex-shrink:0">TU</span>'
+          : '';
+
+        html += '<div class="'+cardCls+'" onclick="focusRider(\''+id+'\')">'
+          +'<div style="display:flex;align-items:center;gap:9px">'
+          +'<div style="width:30px;height:30px;background:'+color+';border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#0a0e17;flex-shrink:0">'+(r.nombre||id).charAt(0)+'</div>'
+          +'<div style="flex:1;min-width:0">'
+          +'<div style="font-size:12px;font-weight:600;display:flex;align-items:center;gap:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+(r.nombre||id)+' <span class="'+dotCls+'"></span></div>'
+          +'<div style="font-size:10px;color:var(--muted);font-family:JetBrains Mono,monospace">'+spd+' km/h <span style="'+estadoColor+';margin-left:6px">'+estadoTxt+'</span></div>'
+          +'</div>'
+          +badge
+          +'</div></div>';
+
+        /* === MARCADOR EN MAPA === */
+        var ini = (r.nombre||id).charAt(0).toUpperCase();
+        if (markers[id]) {
+          markers[id].setLatLng([r.lat, r.lng]);
+        } else {
+          var iconCls = esMi ? 'cm me' : 'cm other';
+          var icon = L.divIcon({
+            className:'',
+            html:'<div class="'+iconCls+'" style="'+(esMi?'':'background:'+color)+'">'+ini+'</div>',
+            iconSize:[36,36],iconAnchor:[18,18]
+          });
+          markers[id] = L.marker([r.lat,r.lng],{icon:icon}).addTo(map);
+          markers[id].bindTooltip(r.nombre||id,{permanent:false,direction:'top',offset:[0,-22],className:'ct'});
+        }
+
+        /* === RUTA / POLYLINE === */
+        if (r.ruta && Array.isArray(r.ruta) && r.ruta.length > 1) {
+          var coords = [];
+          for (var i = 0; i < r.ruta.length; i++) {
+            if (r.ruta[i].lat != null && r.ruta[i].lng != null) {
+              coords.push([r.ruta[i].lat, r.ruta[i].lng]);
+            }
+          }
+          if (coords.length > 1) {
+            if (rutas[id]) {
+              rutas[id].setLatLngs(coords);
+            } else {
+              rutas[id] = L.polyline(coords,{
+                color:color,weight:3,opacity:esActivo?0.45:0.15,smoothFactor:1
+              }).addTo(map);
+            }
+            /* Ajustar opacidad segun estado */
+            rutas[id].setStyle({opacity:esActivo?0.45:0.15});
+          }
+        }
+      }
+
+      /* Eliminar marcadores/rutas de riders que ya no estan en Firebase */
+      for (var oldId in markers) {
+        if (!idsEnFirebase[oldId]) {
+          if (markers[oldId]) map.removeLayer(markers[oldId]);
+          if (rutas[oldId]) map.removeLayer(rutas[oldId]);
+          delete markers[oldId];
+          delete rutas[oldId];
+        }
+      }
+
+      if (activos === 0) {
+        html += '<div class="empty-st"><i class="fas fa-satellite-dish"></i>'
+          +'<p>No hay riders activos en este momento.<br>Abre esta pagina en otra pestana o dispositivo para ver el tracking en tiempo real.</p></div>';
+      }
+
+      listaEl.innerHTML = html;
+      document.getElementById('sRiders').textContent = activos;
+    }
+
+    /* ==========================================================
+       INTERACCIONES MAPA
+    ========================================================== */
+    function focusRider(id) {
+      if (markers[id]) {
+        map.setView(markers[id].getLatLng(),17,{animate:true});
+        markers[id].openTooltip();
+      }
+    }
+
+    function centerMe() {
+      if (!session) return;
+      if (markers[session.usuario]) {
+        map.setView(markers[session.usuario].getLatLng(),17,{animate:true});
+      } else {
+        toast('Esperando senal GPS...','warning');
+      }
+    }
+
+    /* ==========================================================
+       RELOJ
+    ========================================================== */
+    function iniciarClock() {
+      function tick() {
+        var now = new Date();
+        document.getElementById('clock').textContent = now.toLocaleTimeString('es-EC',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+        var el = Math.floor((Date.now()-startTime)/1000);
+        var h = String(Math.floor(el/3600)).padStart(2,'0');
+        var m = String(Math.floor((el%3600)/60)).padStart(2,'0');
+        document.getElementById('sTime').textContent = h+':'+m;
+      }
+      tick();
+      clockInterval = setInterval(tick,1000);
+    }
+
+    /* ==========================================================
+       ADMIN: CREAR / ELIMINAR USUARIOS (localStorage)
+    ========================================================== */
+    function crearUsuario() {
+      var nombre = document.getElementById('nName').value.trim();
+      var usuario = document.getElementById('nUser').value.trim().toLowerCase();
+      var password = document.getElementById('nPass').value.trim();
+      if (!nombre){toast('Ingresa el nombre completo','error');return;}
+      if (!usuario||usuario.length<3){toast('El usuario debe tener al menos 3 caracteres','error');return;}
+      if (!password||password.length<4){toast('La contrasena debe tener al menos 4 caracteres','error');return;}
+      if (/[^a-z0-9_]/.test(usuario)){toast('Solo letras minusculas, numeros y guion bajo','error');return;}
+      var usuarios = getUsuarios();
+      for (var i=0;i<usuarios.length;i++){if(usuarios[i].usuario===usuario){toast('Este usuario ya existe','error');return;}}
+      usuarios.push({nombre:nombre,usuario:usuario,password:password,role:'user',created:Date.now()});
+      setUsuarios(usuarios);
+      document.getElementById('nName').value='';
+      document.getElementById('nUser').value='';
+      document.getElementById('nPass').value='';
+      refreshAdmList();
+      toast('Usuario "'+nombre+'" creado. Puede iniciar sesion en otro dispositivo.','success');
+    }
+
+    function delUser(u) {
+      if (!session) return;
+      if (u===session.usuario){toast('No puedes eliminarte a ti mismo','error');return;}
+      var usuarios = getUsuarios();
+      var target=null,idx=-1;
+      for(var i=0;i<usuarios.length;i++){if(usuarios[i].usuario===u){target=usuarios[i];idx=i;break;}}
+      if(!target) return;
+      if(target.role==='admin'){toast('No se puede eliminar un administrador','error');return;}
+      /* Tambien eliminar de Firebase si existe */
+      db.ref("riders/"+u).remove();
+      usuarios.splice(idx,1);
+      setUsuarios(usuarios);
+      if(markers[u]){map.removeLayer(markers[u]);delete markers[u];}
+      if(rutas[u]){map.removeLayer(rutas[u]);delete rutas[u];}
+      refreshAdmList();
+      toast('Usuario "'+target.nombre+'" eliminado','warning');
+    }
+
+    function refreshAdmList() {
+      var usuarios = getUsuarios();
+      var box = document.getElementById('admList');
+      var html = '';
+      var ahora = Date.now();
+      if (usuarios.length===0) {
+        html='<div class="empty-st"><i class="fas fa-users"></i><p>No hay usuarios registrados</p></div>';
+      } else {
+        for (var i=0;i<usuarios.length;i++) {
+          var u=usuarios[i];
+          var isAdmin=(u.role==='admin');
+          var isMe=(session&&u.usuario===session.usuario);
+          var badge=isAdmin
+            ?'<span style="font-size:9px;padding:2px 7px;background:var(--accent-dim);color:var(--accent);border-radius:4px;font-weight:600">ADMIN</span>'
+            :'<span style="font-size:9px;padding:2px 7px;background:rgba(0,229,255,.12);color:var(--info);border-radius:4px;font-weight:600">RIDER</span>';
+          var bg=isAdmin?'var(--accent)':'var(--info)';
+          var canDel=!isAdmin&&!isMe;
+          var meLabel=isMe?' <span style="font-size:9px;color:var(--muted)">(tu)</span>':'';
+          var delBtn=canDel?'<button class="del-btn" onclick="delUser(\''+u.usuario+'\')" title="Eliminar"><i class="fas fa-trash-alt"></i></button>':'';
+          html+='<div class="adm-u">'
+            +'<div style="display:flex;align-items:center;gap:9px;min-width:0">'
+            +'<div style="width:30px;height:30px;background:'+bg+';border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#0a0e17;flex-shrink:0">'+u.nombre.charAt(0)+'</div>'
+            +'<div style="min-width:0">'
+            +'<div style="font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+u.nombre+meLabel+'</div>'
+            +'<div style="font-size:10px;color:var(--muted);font-family:JetBrains Mono,monospace">@'+u.usuario+' '+badge+'</div>'
+            +'</div></div>'+delBtn+'</div>';
+        }
+      }
+      box.innerHTML = html;
+    }
+
+    function toggleAdmin() {
+      var p=document.getElementById('admPnl'),o=document.getElementById('admOv');
+      if(p.classList.contains('open')){p.classList.remove('open');o.classList.remove('open');}
+      else{refreshAdmList();p.classList.add('open');o.classList.add('open');}
+    }
+  </script>
+</body>
+</html>
