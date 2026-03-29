@@ -5,10 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Riders Tracker PRO</title>
 
-  <!-- Firebase Compat SDK -->
-  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
-
   <!-- Leaflet -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -68,6 +64,7 @@
     .map-bg{background:rgba(17,24,39,.92);backdrop-filter:blur(8px);border:1px solid var(--border);border-radius:9px;padding:8px 14px;display:flex;align-items:center;gap:7px;font-size:12px;font-family:'JetBrains Mono',monospace}
     .fb-dot{width:8px;height:8px;border-radius:50%;background:var(--accent);animation:fbp 2s infinite}
     .fb-dot.err{background:var(--danger);animation:none}
+    .fb-dot.cache{background:var(--warning);animation:none}
     @keyframes fbp{0%,100%{opacity:.3;transform:scale(.8)}50%{opacity:1;transform:scale(1.2)}}
     .adm-pnl{position:fixed;top:0;right:-420px;width:400px;height:100vh;background:var(--card);border-left:1px solid var(--border);z-index:500;transition:right .4s cubic-bezier(.16,1,.3,1);overflow-y:auto;padding:24px}
     .adm-pnl.open{right:0}
@@ -83,7 +80,7 @@
     .empty-st i{font-size:40px;margin-bottom:14px;opacity:.3}
     .empty-st p{font-size:13px;line-height:1.6}
     .toast-c{position:fixed;top:72px;right:20px;z-index:2000;display:flex;flex-direction:column;gap:8px;pointer-events:none}
-    .toast{background:var(--card);border:1px solid var(--border);border-radius:11px;padding:12px 18px;display:flex;align-items:center;gap:10px;min-width:280px;max-width:420px;animation:tI .4s cubic-bezier(.16,1,.3,1);box-shadow:0 8px 30px rgba(0,0,0,.35);pointer-events:auto}
+    .toast{background:var(--card);border:1px solid var(--border);border-radius:11px;padding:12px 18px;display:flex;align-items:center;gap:10px;min-width:280px;max-width:440px;animation:tI .4s cubic-bezier(.16,1,.3,1);box-shadow:0 8px 30px rgba(0,0,0,.35);pointer-events:auto}
     .toast.success{border-left:3px solid var(--accent)}.toast.error{border-left:3px solid var(--danger)}.toast.warning{border-left:3px solid var(--warning)}.toast.info{border-left:3px solid var(--info)}
     .toast.out{animation:tO .3s ease forwards}
     @keyframes tI{from{transform:translateX(120%);opacity:0}to{transform:translateX(0);opacity:1}}
@@ -97,9 +94,14 @@
     .leaflet-control-attribution a{color:var(--accent)!important}
     .ct{background:var(--card)!important;border:1px solid var(--border)!important;color:var(--fg)!important;border-radius:8px!important;padding:5px 11px!important;font-family:'Space Grotesk',sans-serif!important;font-size:12px!important;font-weight:500!important;box-shadow:0 4px 12px rgba(0,0,0,.3)!important}
     .ct::before{border-top-color:var(--border)!important}
-    .perm-banner{background:rgba(255,59,92,.08);border:1px solid rgba(255,59,92,.25);border-radius:9px;padding:10px 14px;margin-bottom:12px;font-size:11px;color:var(--danger);line-height:1.5;display:none}
-    .perm-banner.show{display:block}
-    .perm-banner code{background:rgba(255,59,92,.12);padding:1px 5px;border-radius:4px;font-family:'JetBrains Mono',monospace;font-size:10px}
+    .status-banner{border-radius:9px;padding:10px 14px;margin-bottom:12px;font-size:11px;line-height:1.6;display:none}
+    .status-banner.show{display:block}
+    .status-banner.error{background:rgba(255,59,92,.08);border:1px solid rgba(255,59,92,.25);color:var(--danger)}
+    .status-banner.warn{background:rgba(255,230,0,.06);border:1px solid rgba(255,230,0,.2);color:var(--warning)}
+    .status-banner.ok{background:rgba(0,255,136,.06);border:1px solid rgba(0,255,136,.2);color:var(--accent)}
+    .status-banner code{background:rgba(255,255,255,.06);padding:1px 5px;border-radius:4px;font-family:'JetBrains Mono',monospace;font-size:10px;white-space:pre-wrap}
+    .retry-btn{margin-top:8px;padding:6px 14px;background:var(--danger);color:#fff;border:none;border-radius:6px;font-family:'Space Grotesk',sans-serif;font-size:11px;font-weight:600;cursor:pointer;transition:opacity .2s}
+    .retry-btn:hover{opacity:.85}
     @media(max-width:768px){
       .app-layout{grid-template-columns:1fr;grid-template-rows:56px 1fr 190px}
       .sidebar{order:3;border-right:none;border-top:1px solid var(--border)}
@@ -124,9 +126,9 @@
           <i class="fas fa-route" style="font-size:26px;color:var(--accent)"></i>
         </div>
         <h1 style="font-size:24px;font-weight:700;letter-spacing:-.4px">Riders Tracker PRO</h1>
-        <p style="color:var(--muted);font-size:13px;margin-top:5px">Seguimiento en tiempo real con Firebase</p>
+        <p style="color:var(--muted);font-size:13px;margin-top:5px">Tiempo real con Firestore</p>
       </div>
-      <form id="loginForm" onsubmit="return handleLogin(event)">
+      <form id="loginForm">
         <div style="margin-bottom:14px">
           <label style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:5px">Usuario</label>
           <input type="text" id="loginUser" placeholder="Ingresa tu usuario" autocomplete="username" required>
@@ -135,13 +137,13 @@
           <label style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:5px">Contrasena</label>
           <div style="position:relative">
             <input type="password" id="loginPass" placeholder="Ingresa tu contrasena" autocomplete="current-password" required>
-            <button type="button" onclick="togglePass()" style="position:absolute;right:14px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px" aria-label="Mostrar contrasena"><i class="fas fa-eye" id="passIcon"></i></button>
+            <button type="button" id="togglePassBtn" style="position:absolute;right:14px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px" aria-label="Mostrar contrasena"><i class="fas fa-eye" id="passIcon"></i></button>
           </div>
         </div>
         <div class="err-msg" id="loginErr"><i class="fas fa-exclamation-circle"></i><span>Credenciales incorrectas</span></div>
         <div style="margin-top:22px"><button type="submit" class="btn-p"><i class="fas fa-sign-in-alt" style="margin-right:7px"></i>Ingresar</button></div>
       </form>
-      <p style="text-align:center;color:var(--muted);font-size:11px;margin-top:22px"><i class="fas fa-shield-alt" style="margin-right:4px"></i>Conexion segura via Firebase</p>
+      <p style="text-align:center;color:var(--muted);font-size:11px;margin-top:22px"><i class="fas fa-shield-alt" style="margin-right:4px"></i>Conexion segura via Firestore</p>
     </div>
   </div>
 
@@ -154,17 +156,17 @@
         </div>
         <span style="font-weight:600;font-size:15px" class="hidden sm:inline">Riders Tracker PRO</span>
         <div style="display:flex;align-items:center;gap:5px;margin-left:8px;font-size:11px;color:var(--muted)">
-          <div class="fb-dot" id="fbDot"></div><span id="fbStatus">Conectando...</span>
+          <div class="fb-dot" id="fbDot"></div><span id="fbStatus">Iniciando...</span>
         </div>
       </div>
       <div style="display:flex;align-items:center;gap:12px">
         <span id="clock" style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--muted)" class="hidden sm:inline"></span>
-        <div id="adminBtn" style="display:none;cursor:pointer" onclick="toggleAdmin()" title="Panel administrador">
-          <div style="width:34px;height:34px;background:var(--accent-dim);border-radius:9px;display:flex;align-items:center;justify-content:center;transition:background .2s" onmouseover="this.style.background='rgba(0,255,136,.25)'" onmouseout="this.style.background='var(--accent-dim)'">
+        <div id="adminBtn" style="display:none;cursor:pointer" title="Panel administrador">
+          <div style="width:34px;height:34px;background:var(--accent-dim);border-radius:9px;display:flex;align-items:center;justify-content:center;transition:background .2s" id="adminBtnInner">
             <i class="fas fa-crown" style="color:var(--accent);font-size:13px"></i>
           </div>
         </div>
-        <div style="display:flex;align-items:center;gap:8px;cursor:pointer" onclick="handleLogout()" title="Cerrar sesion">
+        <div style="display:flex;align-items:center;gap:8px;cursor:pointer" id="logoutBtn" title="Cerrar sesion">
           <div style="width:34px;height:34px;background:var(--bg);border:1px solid var(--border);border-radius:9px;display:flex;align-items:center;justify-content:center">
             <i class="fas fa-user" style="color:var(--fg);font-size:12px"></i>
           </div>
@@ -177,11 +179,14 @@
     </header>
 
     <aside class="sidebar">
-      <!-- Banner de error de permisos Firebase -->
-      <div class="perm-banner" id="permBanner">
+      <div class="status-banner error" id="bannerError">
         <i class="fas fa-exclamation-triangle" style="margin-right:5px"></i>
-        Firebase deniega acceso. Ve a <strong>Console &gt; Realtime Database &gt; Reglas</strong> y pega:<br>
-        <code>{"rules":{".read":true,".write":true}}</code>
+        <span id="bannerErrorTxt"></span>
+        <button class="retry-btn" id="retryBtn"><i class="fas fa-redo" style="margin-right:4px"></i>Reintentar</button>
+      </div>
+      <div class="status-banner warn" id="bannerWarn">
+        <i class="fas fa-info-circle" style="margin-right:5px"></i>
+        <span id="bannerWarnTxt"></span>
       </div>
 
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:18px">
@@ -193,12 +198,12 @@
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
         <h3 style="font-size:13px;font-weight:600">Riders en mapa</h3>
         <div style="display:flex;gap:6px">
-          <button onclick="centerMe()" style="background:none;border:none;color:var(--accent);cursor:pointer;font-size:11px;font-family:'Space Grotesk',sans-serif"><i class="fas fa-crosshairs" style="margin-right:3px"></i>Mi ubicacion</button>
-          <button onclick="limpiarRuta()" class="btn-sm" title="Limpiar mi ruta"><i class="fas fa-eraser"></i></button>
+          <button id="centerMeBtn" style="background:none;border:none;color:var(--accent);cursor:pointer;font-size:11px;font-family:'Space Grotesk',sans-serif"><i class="fas fa-crosshairs" style="margin-right:3px"></i>Mi ubicacion</button>
+          <button id="limpiarRutaBtn" class="btn-sm" title="Limpiar mi ruta"><i class="fas fa-eraser"></i></button>
         </div>
       </div>
       <div id="riderList">
-        <div class="empty-st"><i class="fas fa-satellite-dish"></i><p>Esperando datos de Firebase...</p></div>
+        <div class="empty-st"><i class="fas fa-satellite-dish"></i><p>Iniciando conexion...</p></div>
       </div>
     </aside>
 
@@ -207,24 +212,24 @@
       <div class="map-ov">
         <div class="map-bg"><i class="fas fa-satellite-dish" style="color:var(--accent)"></i><span id="gpsTxt">GPS: Buscando...</span></div>
         <div class="map-bg"><i class="fas fa-map-marker-alt" style="color:var(--info)"></i><span id="coordTxt">--, --</span></div>
-        <div class="map-bg"><i class="fas fa-database" style="color:var(--muted);font-size:10px"></i><span>Firebase RT</span></div>
+        <div class="map-bg"><i class="fas fa-database" style="color:var(--muted);font-size:10px"></i><span id="dbModeTxt">--</span></div>
       </div>
     </main>
   </div>
 
-  <!-- ADMIN PANEL -->
-  <div class="adm-ov" id="admOv" onclick="toggleAdmin()"></div>
+  <!-- ADMIN -->
+  <div class="adm-ov" id="admOv"></div>
   <aside class="adm-pnl" id="admPnl" role="dialog" aria-label="Panel de administracion">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:26px">
       <div><h2 style="font-size:19px;font-weight:700">Panel Admin</h2><p style="font-size:12px;color:var(--muted);margin-top:2px">Gestion de usuarios</p></div>
-      <button onclick="toggleAdmin()" style="width:34px;height:34px;background:var(--bg);border:1px solid var(--border);border-radius:9px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--fg)" aria-label="Cerrar"><i class="fas fa-times"></i></button>
+      <button id="closeAdmBtn" style="width:34px;height:34px;background:var(--bg);border:1px solid var(--border);border-radius:9px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--fg)" aria-label="Cerrar"><i class="fas fa-times"></i></button>
     </div>
     <div style="background:var(--bg);border:1px solid var(--border);border-radius:13px;padding:18px;margin-bottom:22px">
       <h3 style="font-size:13px;font-weight:600;margin-bottom:14px"><i class="fas fa-user-plus" style="color:var(--accent);margin-right:7px"></i>Nuevo usuario</h3>
       <div style="margin-bottom:10px"><label style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;display:block;margin-bottom:3px">Nombre completo</label><input type="text" id="nName" class="adm-in" placeholder="Ej: Ana Martinez"></div>
       <div style="margin-bottom:10px"><label style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;display:block;margin-bottom:3px">Usuario</label><input type="text" id="nUser" class="adm-in" placeholder="Ej: amartinez"></div>
       <div style="margin-bottom:14px"><label style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;display:block;margin-bottom:3px">Contrasena</label><input type="text" id="nPass" class="adm-in" placeholder="Contrasena"></div>
-      <button onclick="crearUsuario()" class="btn-p" style="font-size:13px;padding:11px"><i class="fas fa-plus" style="margin-right:7px"></i>Crear usuario</button>
+      <button id="crearUserBtn" class="btn-p" style="font-size:13px;padding:11px"><i class="fas fa-plus" style="margin-right:7px"></i>Crear usuario</button>
     </div>
     <div>
       <h3 style="font-size:13px;font-weight:600;margin-bottom:12px"><i class="fas fa-users" style="color:var(--info);margin-right:7px"></i>Usuarios registrados</h3>
@@ -232,829 +237,665 @@
     </div>
   </aside>
 
-  <script>
-    /* ==========================================================
-       TOAST — Notificaciones no intrusivas
-    ========================================================== */
-    function toast(msg, type, duration) {
-      type = type || 'info';
-      duration = duration || 4000;
-      var c = document.getElementById('toastBox');
-      var t = document.createElement('div');
-      t.className = 'toast ' + type;
-      var icons = {success:'fa-check-circle',error:'fa-times-circle',warning:'fa-exclamation-triangle',info:'fa-info-circle'};
-      var colors = {success:'var(--accent)',error:'var(--danger)',warning:'var(--warning)',info:'var(--info)'};
-      t.innerHTML = '<i class="fas '+icons[type]+'" style="color:'+colors[type]+';font-size:16px;flex-shrink:0"></i><span style="font-size:13px;line-height:1.4">'+msg+'</span>';
-      c.appendChild(t);
-      setTimeout(function(){t.classList.add('out');setTimeout(function(){if(t.parentNode)t.remove()},300)},duration);
-    }
+  <!-- ========================================
+       FIRESTORE MODULAR (ES Modules)
+       onSnapshot + includeMetadataChanges
+       + enableIndexedDBPersistence (offline)
+  ======================================== -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import {
+      getFirestore,
+      collection,
+      doc,
+      setDoc,
+      deleteDoc,
+      getDoc,
+      onSnapshot,
+      enableIndexedDBPersistence
+    } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-    /* ==========================================================
-       SEED + MIGRACION (localStorage para credenciales)
-    ========================================================== */
-    function seedAdmin() {
-      try {
-        var raw = localStorage.getItem("rt_users");
-        if (!raw) {
-          var seed = [{nombre:"Juan Criollo",usuario:"jcriollo",password:"clavito01",role:"admin",created:Date.now()}];
-          localStorage.setItem("rt_users", JSON.stringify(seed));
-          return;
-        }
-        var datos = JSON.parse(raw);
-        if (datos !== null && typeof datos === 'object' && !Array.isArray(datos)) {
-          var migrado = [];
-          var claves = Object.keys(datos);
-          for (var i = 0; i < claves.length; i++) {
-            var k = claves[i], v = datos[k];
-            migrado.push({nombre:v.name||v.nombre||k, usuario:k, password:v.password||"", role:v.role||"user", created:v.created||Date.now()});
-          }
-          localStorage.setItem("rt_users", JSON.stringify(migrado));
-          return;
-        }
-        if (Array.isArray(datos) && datos.length === 0) {
-          var seed2 = [{nombre:"Juan Criollo",usuario:"jcriollo",password:"clavito01",role:"admin",created:Date.now()}];
-          localStorage.setItem("rt_users", JSON.stringify(seed2));
-        }
-      } catch(e) {
-        var seed3 = [{nombre:"Juan Criollo",usuario:"jcriollo",password:"clavito01",role:"admin",created:Date.now()}];
-        localStorage.setItem("rt_users", JSON.stringify(seed3));
-      }
-    }
-    seedAdmin();
-
-    function getUsuarios() {
-      try { var d = JSON.parse(localStorage.getItem("rt_users")); if (Array.isArray(d)) return d; } catch(e){}
-      seedAdmin();
-      try { return JSON.parse(localStorage.getItem("rt_users")); } catch(e2){ return []; }
-    }
-    function setUsuarios(u) { localStorage.setItem("rt_users", JSON.stringify(u)); }
-    function getSession() { try { return JSON.parse(localStorage.getItem("rt_session")); } catch(e){ return null; } }
-    function setSession(u) { localStorage.setItem("rt_session", JSON.stringify(u)); }
-    function clearSession() { localStorage.removeItem("rt_session"); }
-
-    /* ==========================================================
-       FIREBASE INIT — Sin barra final en databaseURL
-    ========================================================== */
-    var firebaseConfig = {
+    /* ----------------------------------------------------------
+       CONFIGURACION FIREBASE
+    ---------------------------------------------------------- */
+    const firebaseConfig = {
       apiKey: "AIzaSyAov1tlSvMc8VNfwKbYLDgNftDLUK390Tw",
       authDomain: "mapa-c26d7.firebaseapp.com",
-      databaseURL: "https://mapa-c26d7-default-rtdb.firebaseio.com",
       projectId: "mapa-c26d7",
       storageBucket: "mapa-c26d7.appspot.com",
       messagingSenderId: "731287849216",
       appId: "1:731287849216:web:b24c8cbc0b9aa609a04be5"
     };
 
-    var fbInitOk = false;
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    /* ----------------------------------------------------------
+       PERSISTENCIA OFFLINE — Los datos siempre disponibles
+       incluso sin internet. Se sincroniza solo al volver.
+    ---------------------------------------------------------- */
+    let persistenciaOk = false;
     try {
-      firebase.initializeApp(firebaseConfig);
-      fbInitOk = true;
-    } catch(e) {
-      console.error("Error inicializando Firebase:", e);
-    }
-
-    var db = null;
-    var fbConnected = false;
-    var fbPermOk = null; /* null = no verificado, true = ok, false = denegado */
-
-    if (fbInitOk) {
-      try {
-        db = firebase.database();
-
-        /* Verificar conexion en tiempo real */
-        db.ref(".info/connected").on("value", function(snap) {
-          fbConnected = snap.val() === true;
-          actualizarIndicadorFirebase();
-        });
-      } catch(e2) {
-        console.error("Error accediendo a Firebase Database:", e2);
-        fbInitOk = false;
-      }
-    }
-
-    function actualizarIndicadorFirebase() {
-      var dot = document.getElementById("fbDot");
-      var txt = document.getElementById("fbStatus");
-      if (!dot || !txt) return;
-      if (!fbInitOk) {
-        dot.classList.add("err");
-        txt.textContent = "Firebase: Error";
-      } else if (!fbConnected) {
-        dot.classList.add("err");
-        txt.textContent = "Firebase: Desconectado";
-      } else if (fbPermOk === false) {
-        dot.classList.add("err");
-        txt.textContent = "Firebase: Sin permisos";
+      await enableIndexedDBPersistence(db);
+      persistenciaOk = true;
+      console.log("Persistencia IndexedDB activada");
+    } catch (err) {
+      if (err.code === 'failed-precondition') {
+        console.warn("Persistencia: multiples pestanas abiertas, se usa cache de esta pestana.");
+        persistenciaOk = true;
+      } else if (err.code === 'unimplemented') {
+        console.warn("Persistencia: navegador no soporta IndexedDB.");
       } else {
-        dot.classList.remove("err");
-        txt.textContent = "Firebase: Conectado";
+        console.warn("Persistencia error:", err.code);
       }
     }
 
-    /* Verificacion de permisos: intentar escribir/leer un valor de prueba */
-    function verificarPermisosFirebase() {
-      if (!db) {
-        fbPermOk = false;
-        mostrarBannerPermisos();
-        return;
-      }
-      var testRef = db.ref("_connection_test_" + Date.now());
-      testRef.set({t: 1}).then(function() {
-        testRef.remove();
-        fbPermOk = true;
-        actualizarIndicadorFirebase();
-        toast("Firebase conectado y con permisos correctos", "success");
-      }).catch(function(err) {
-        fbPermOk = false;
-        actualizarIndicadorFirebase();
-        console.error("Error de permisos Firebase:", err);
-        if (err.code === "PERMISSION_DENIED") {
-          mostrarBannerPermisos();
-          toast("Firebase deniega acceso. Revisa las reglas en la consola.", "error", 8000);
-        } else {
-          toast("Error Firebase: " + (err.message || err.code || "desconocido"), "error", 6000);
+    /* ----------------------------------------------------------
+       TOAST
+    ---------------------------------------------------------- */
+    function toast(msg, type, duration) {
+      type = type || 'info';
+      duration = duration || 4000;
+      const c = document.getElementById('toastBox');
+      const t = document.createElement('div');
+      t.className = 'toast ' + type;
+      const icons = { success:'fa-check-circle', error:'fa-times-circle', warning:'fa-exclamation-triangle', info:'fa-info-circle' };
+      const colors = { success:'var(--accent)', error:'var(--danger)', warning:'var(--warning)', info:'var(--info)' };
+      t.innerHTML = `<i class="fas ${icons[type]}" style="color:${colors[type]};font-size:16px;flex-shrink:0"></i><span style="font-size:13px;line-height:1.4">${msg}</span>`;
+      c.appendChild(t);
+      setTimeout(() => { t.classList.add('out'); setTimeout(() => { if(t.parentNode) t.remove(); }, 300); }, duration);
+    }
+
+    /* ----------------------------------------------------------
+       USUARIOS (localStorage)
+    ---------------------------------------------------------- */
+    function seedAdmin() {
+      try {
+        const raw = localStorage.getItem("rt_users");
+        if (!raw) { localStorage.setItem("rt_users", JSON.stringify([{nombre:"Juan Criollo",usuario:"jcriollo",password:"clavito01",role:"admin",created:Date.now()}])); return; }
+        const datos = JSON.parse(raw);
+        if (datos !== null && typeof datos === 'object' && !Array.isArray(datos)) {
+          const m = []; for (const k in datos) { const v=datos[k]; m.push({nombre:v.name||v.nombre||k,usuario:k,password:v.password||"",role:v.role||"user",created:v.created||Date.now()}); }
+          localStorage.setItem("rt_users", JSON.stringify(m)); return;
         }
-      });
+        if (Array.isArray(datos) && datos.length === 0) { localStorage.setItem("rt_users", JSON.stringify([{nombre:"Juan Criollo",usuario:"jcriollo",password:"clavito01",role:"admin",created:Date.now()}])); }
+      } catch(e) { localStorage.setItem("rt_users", JSON.stringify([{nombre:"Juan Criollo",usuario:"jcriollo",password:"clavito01",role:"admin",created:Date.now()}])); }
     }
+    seedAdmin();
+    function getUsuarios(){try{const d=JSON.parse(localStorage.getItem("rt_users"));if(Array.isArray(d))return d;}catch(e){}seedAdmin();try{return JSON.parse(localStorage.getItem("rt_users"));}catch(e){return [];}}
+    function setUsuarios(u){localStorage.setItem("rt_users",JSON.stringify(u));}
+    function getSession(){try{return JSON.parse(localStorage.getItem("rt_session"));}catch(e){return null;}}
+    function setSession(u){localStorage.setItem("rt_session",JSON.stringify(u));}
+    function clearSession(){localStorage.removeItem("rt_session");}
 
-    function mostrarBannerPermisos() {
-      var b = document.getElementById("permBanner");
-      if (b) b.classList.add("show");
-    }
+    /* ----------------------------------------------------------
+       PALETA
+    ---------------------------------------------------------- */
+    const PALETA=['#00ff88','#00e5ff','#ff6b35','#ffe600','#ff3b8b','#a78bfa','#34d399','#f97316','#22d3ee','#f43f5e'];
+    function colorRider(id){let h=0;for(let i=0;i<id.length;i++)h=id.charCodeAt(i)+((h<<5)-h);return PALETA[Math.abs(h)%PALETA.length];}
 
-    /* ==========================================================
-       PALETA DE COLORES PARA RIDERS
-    ========================================================== */
-    var PALETA = ['#00ff88','#00e5ff','#ff6b35','#ffe600','#ff3b8b','#a78bfa','#34d399','#f97316','#22d3ee','#f43f5e'];
-
-    function colorRider(id) {
-      var h = 0;
-      for (var i = 0; i < id.length; i++) h = id.charCodeAt(i) + ((h << 5) - h);
-      return PALETA[Math.abs(h) % PALETA.length];
-    }
-
-    /* ==========================================================
+    /* ----------------------------------------------------------
        ESTADO GLOBAL
-    ========================================================== */
-    var map = null;
-    var markers = {};
-    var rutas = {};
-    var watchId = null;
-    var clockInterval = null;
-    var gpsTimeout = null;
-    var firebaseListener = null;
-    var startTime = Date.now();
-    var totalDist = 0;
-    var lastGPSPos = null;
-    var mapCentered = false;
-    var miRuta = [];
-    var lastRutaWrite = 0; /* Timestamp de ultima escritura de ruta */
-    var session = null;
-    var firebaseDataReceived = false; /* Flag: ha llegado al menos 1 dato de Firebase? */
-    var renderPending = false; /* Para debounce con requestAnimationFrame */
+    ---------------------------------------------------------- */
+    let map = null, markers = {}, rutas = {}, watchId = null, clockInterval = null, gpsTimeout = null;
+    let firestoreUnsubscribe = null, startTime = Date.now(), totalDist = 0, lastGPSPos = null;
+    let mapCentered = false, miRuta = [], lastRutaWrite = 0, session = null;
+    let firebaseDataReceived = false, renderPending = false, rutaInitDone = false;
+    let lastServerData = 0, fbState = 'init', fbRetryCount = 0, fbRetryTimer = null, connCheckInterval = null;
 
-    /* ==========================================================
-       HAVERSINE
-    ========================================================== */
-    function haversine(lat1, lon1, lat2, lon2) {
-      var R = 6371;
-      var dLat = (lat2-lat1)*Math.PI/180, dLon = (lon2-lon1)*Math.PI/180;
-      var a = Math.sin(dLat/2)*Math.sin(dLat/2)+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)*Math.sin(dLon/2);
-      return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+    /* ----------------------------------------------------------
+       ESTADO FIRESTORE UI
+       'init' | 'checking' | 'connected' | 'cache' | 'denied' | 'notfound' | 'error'
+    ---------------------------------------------------------- */
+    function actualizarUI() {
+      const dot = document.getElementById("fbDot");
+      const txt = document.getElementById("fbStatus");
+      const dbTxt = document.getElementById("dbModeTxt");
+      const bErr = document.getElementById("bannerError");
+      const bWarn = document.getElementById("bannerWarn");
+      if(!dot||!txt) return;
+      if(bErr) bErr.classList.remove('show');
+      if(bWarn) bWarn.classList.remove('show');
+
+      switch(fbState) {
+        case 'init': dot.className='fb-dot err'; txt.textContent='Iniciando...'; if(dbTxt)dbTxt.textContent='--'; break;
+        case 'checking': dot.className='fb-dot cache'; txt.textContent='Verificando...'; if(dbTxt)dbTxt.textContent='Verificando'; break;
+        case 'connected': dot.className='fb-dot'; txt.textContent='Firestore: EN VIVO'; if(dbTxt)dbTxt.textContent='LIVE'; break;
+        case 'cache': dot.className='fb-dot cache'; txt.textContent='Firestore: Cache'; if(dbTxt)dbTxt.textContent='CACHE';
+          if(bWarn){bWarn.classList.add('show');document.getElementById('bannerWarnTxt').textContent='Sin conexion al servidor. Mostrando datos en cache. Se sincronizara al volver.';} break;
+        case 'denied': dot.className='fb-dot err'; txt.textContent='Firestore: Bloqueado'; if(dbTxt)dbTxt.textContent='ERROR';
+          if(bErr){bErr.classList.add('show');document.getElementById('bannerErrorTxt').innerHTML='<strong>Permiso denegado.</strong> Ve a Firebase Console &gt; <strong>Firestore Database</strong> &gt; <strong>Reglas</strong> y pega:<br><code>rules_version = \'2\';\nservice cloud.firestore {\n  match /databases/{db}/documents {\n    match /{path=**} {\n      allow read, write: if true;\n    }\n  }\n}</code>';} break;
+        case 'notfound': dot.className='fb-dot err'; txt.textContent='Firestore: No creada'; if(dbTxt)dbTxt.textContent='ERROR';
+          if(bErr){bErr.classList.add('show');document.getElementById('bannerErrorTxt').innerHTML='<strong>Firestore no existe.</strong><br>1. Ve a <a href="https://console.firebase.google.com/project/mapa-c26d7/firestore" target="_blank" style="color:var(--info);text-decoration:underline">Firebase Console &gt; Firestore</a><br>2. Clic en <strong>"Crear base de datos"</strong><br>3. Elige <strong>"Modo de prueba"</strong><br>4. Configura las reglas como indica arriba';} break;
+        case 'error': dot.className='fb-dot err'; txt.textContent='Firebase: Error'; if(dbTxt)dbTxt.textContent='ERROR'; break;
+      }
     }
 
-    /* ==========================================================
-       INICIAR APLICACION (despues de login o auto-login)
-    ========================================================== */
+    /* Verificar permisos escribiendo/leyendo un doc de prueba */
+    async function verificarFirestore() {
+      fbState = 'checking'; actualizarUI();
+      try {
+        const testId = '_ping_' + Date.now();
+        await setDoc(doc(db, "_ping", testId), { t: Date.now() });
+        await deleteDoc(doc(db, "_ping", testId));
+        fbState = 'connected'; fbRetryCount = 0; actualizarUI();
+        toast('Firestore conectado — tiempo real activo', 'success');
+      } catch(err) {
+        const code = err.code || '';
+        console.error("Verificacion Firestore:", code, err.message);
+        if (code === 'permission-denied') fbState = 'denied';
+        else if (code === 'not-found' || (err.message && err.message.includes('not found'))) fbState = 'notfound';
+        else if (code === 'unavailable' || code === 'deadline-exceeded') { fbState = 'cache'; programarReintento(); }
+        else { fbState = 'error'; programarReintento(); }
+        actualizarUI();
+      }
+    }
+
+    function programarReintento() {
+      fbRetryCount++;
+      if (fbRetryCount > 8) { toast('No se pudo conectar tras multiples intentos', 'error', 8000); return; }
+      const delay = Math.min(fbRetryCount * 4000, 20000);
+      if (fbRetryTimer) clearTimeout(fbRetryTimer);
+      fbRetryTimer = setTimeout(() => {
+        if (fbState === 'cache' || fbState === 'error') verificarFirestore();
+      }, delay);
+    }
+
+    /* Chequeo periodico de si estamos recibiendo datos del servidor */
+    function iniciarConnCheck() {
+      if (connCheckInterval) return;
+      connCheckInterval = setInterval(() => {
+        if (fbState === 'connected' && lastServerData > 0 && Date.now() - lastServerData > 30000) {
+          fbState = 'cache'; actualizarUI();
+        } else if (fbState === 'cache' && lastServerData > 0 && Date.now() - lastServerData <= 30000) {
+          fbState = 'connected'; fbRetryCount = 0; actualizarUI();
+          toast('Conexion restaurada — tiempo real activo', 'success');
+        }
+      }, 5000);
+    }
+    function detenerConnCheck(){ if(connCheckInterval){clearInterval(connCheckInterval);connCheckInterval=null;} }
+
+    /* ----------------------------------------------------------
+       HAVERSINE
+    ---------------------------------------------------------- */
+    function haversine(a,b,c,d){const R=6371,e=(c-a)*Math.PI/180,f=(d-b)*Math.PI/180,g=Math.sin(e/2)*Math.sin(e/2)+Math.cos(a*Math.PI/180)*Math.cos(c*Math.PI/180)*Math.sin(f/2)*Math.sin(f/2);return R*2*Math.atan2(Math.sqrt(g),Math.sqrt(1-g));}
+
+    /* ----------------------------------------------------------
+       INICIAR APP
+    ---------------------------------------------------------- */
     function iniciarApp() {
       document.getElementById('topUser').textContent = session.nombre;
       if (session.role === 'admin') document.getElementById('adminBtn').style.display = 'block';
-      initMap();
-      iniciarGPS();
-      iniciarFirebaseListener();
-      iniciarClock();
-      /* Verificar permisos Firebase tras 2 segundos de espera */
-      setTimeout(verificarPermisosFirebase, 2000);
+      initMap(); iniciarGPS(); iniciarFirestoreListener(); iniciarClock(); iniciarConnCheck();
+      setTimeout(verificarFirestore, 2500);
       toast('Bienvenido, ' + session.nombre, 'success');
     }
 
-    /* ==========================================================
+    /* ----------------------------------------------------------
        LOGIN
-    ========================================================== */
+    ---------------------------------------------------------- */
     function handleLogin(e) {
       e.preventDefault();
-      var usuario = document.getElementById('loginUser').value.trim().toLowerCase();
-      var password = document.getElementById('loginPass').value;
-      var errEl = document.getElementById('loginErr');
-      var usuarios = getUsuarios();
-      var user = null;
-      for (var i = 0; i < usuarios.length; i++) {
-        if (usuarios[i].usuario === usuario && usuarios[i].password === password) { user = usuarios[i]; break; }
-      }
+      const usuario = document.getElementById('loginUser').value.trim().toLowerCase();
+      const password = document.getElementById('loginPass').value;
+      const errEl = document.getElementById('loginErr');
+      const usuarios = getUsuarios();
+      let user = null;
+      for (let i = 0; i < usuarios.length; i++) { if (usuarios[i].usuario === usuario && usuarios[i].password === password) { user = usuarios[i]; break; } }
       if (user) {
-        errEl.classList.remove('show');
-        session = user;
-        setSession(user);
-        var ls = document.getElementById('loginScreen');
-        ls.style.opacity = '0';
-        setTimeout(function() {
-          ls.style.display = 'none';
-          document.getElementById('appLayout').classList.add('active');
-          iniciarApp();
-        }, 450);
+        errEl.classList.remove('show'); session = user; setSession(user);
+        const ls = document.getElementById('loginScreen'); ls.style.opacity = '0';
+        setTimeout(() => { ls.style.display = 'none'; document.getElementById('appLayout').classList.add('active'); iniciarApp(); }, 450);
       } else {
         errEl.classList.add('show');
-        var card = document.getElementById('loginCard');
-        card.style.animation = 'shake .45s';
-        setTimeout(function(){card.style.animation=''},500);
+        const card = document.getElementById('loginCard'); card.style.animation = 'shake .45s';
+        setTimeout(() => { card.style.animation = ''; }, 500);
       }
-      return false;
-    }
-
-    function togglePass() {
-      var inp = document.getElementById('loginPass'), ico = document.getElementById('passIcon');
-      if (inp.type==='password'){inp.type='text';ico.className='fas fa-eye-slash';}
-      else{inp.type='password';ico.className='fas fa-eye';}
     }
 
     function handleLogout() {
-      /* Eliminar datos del rider de Firebase */
-      if (session && db) {
-        db.ref("riders/" + session.usuario).remove(function(err) {
-          if (err) console.warn("Error al eliminar de Firebase:", err);
-        });
-      }
-      clearSession();
-      detenerTodo();
+      if (session) { deleteDoc(doc(db, "riders", session.usuario)).catch(() => {}); }
+      clearSession(); detenerTodo();
       document.getElementById('appLayout').classList.remove('active');
-      var ls = document.getElementById('loginScreen');
-      ls.style.display = 'flex'; ls.style.opacity = '1';
+      const ls = document.getElementById('loginScreen'); ls.style.display = 'flex'; ls.style.opacity = '1';
       document.getElementById('loginPass').value = '';
       document.getElementById('adminBtn').style.display = 'none';
-      document.getElementById('permBanner').classList.remove('show');
-      firebaseDataReceived = false;
+      firebaseDataReceived = false; lastServerData = 0; fbState = 'init'; fbRetryCount = 0;
       toast('Sesion cerrada', 'info');
     }
 
-    /* Detener todos los servicios activos */
     function detenerTodo() {
       if (watchId) { navigator.geolocation.clearWatch(watchId); watchId = null; }
       if (clockInterval) { clearInterval(clockInterval); clockInterval = null; }
       if (gpsTimeout) { clearTimeout(gpsTimeout); gpsTimeout = null; }
-      if (firebaseListener && db) { db.ref("riders").off("value", firebaseListener); firebaseListener = null; }
-      if (map) {
-        for (var id in markers) { if (markers[id]) map.removeLayer(markers[id]); }
-        for (var id2 in rutas) { if (rutas[id2]) map.removeLayer(rutas[id2]); }
-      }
+      detenerConnCheck();
+      if (fbRetryTimer) { clearTimeout(fbRetryTimer); fbRetryTimer = null; }
+      if (firestoreUnsubscribe) { firestoreUnsubscribe(); firestoreUnsubscribe = null; }
+      if (map) { for (const id in markers) { if(markers[id]) map.removeLayer(markers[id]); } for (const id in rutas) { if(rutas[id]) map.removeLayer(rutas[id]); } }
       markers = {}; rutas = {}; map = null; mapCentered = false;
-      totalDist = 0; lastGPSPos = null; miRuta = []; lastRutaWrite = 0; session = null;
-      document.getElementById('riderList').innerHTML = '';
+      totalDist = 0; lastGPSPos = null; miRuta = []; lastRutaWrite = 0; session = null; rutaInitDone = false;
     }
 
-    document.getElementById('loginUser').addEventListener('keydown', function(e){if(e.key==='Enter')document.getElementById('loginPass').focus()});
+    /* ----------------------------------------------------------
+       AUTO-LOGIN
+    ---------------------------------------------------------- */
+    const savedSession = getSession();
+    if (savedSession) {
+      const usuarios = getUsuarios();
+      let valido = false;
+      for (let i = 0; i < usuarios.length; i++) { if (usuarios[i].usuario === savedSession.usuario) { valido = true; break; } }
+      if (valido) {
+        session = savedSession;
+        document.getElementById('loginScreen').style.display = 'none';
+        document.getElementById('appLayout').classList.add('active');
+        iniciarApp();
+      } else { clearSession(); }
+    }
+    if (!session) document.getElementById('loginUser').focus();
 
-    /* ==========================================================
-       AUTO-LOGIN: Si hay sesion guardada, saltar login
-    ========================================================== */
-    window.addEventListener('load', function() {
-      var s = getSession();
-      if (s) {
-        /* Validar que el usuario aun existe en la lista */
-        var usuarios = getUsuarios();
-        var valido = false;
-        for (var i = 0; i < usuarios.length; i++) {
-          if (usuarios[i].usuario === s.usuario) { valido = true; break; }
-        }
-        if (valido) {
-          session = s;
-          document.getElementById('loginScreen').style.display = 'none';
-          document.getElementById('appLayout').classList.add('active');
-          iniciarApp();
-          return;
-        } else {
-          clearSession();
-        }
-      }
-      document.getElementById('loginUser').focus();
+    /* ----------------------------------------------------------
+       EVENT LISTENERS (no inline onclick porque es module)
+    ---------------------------------------------------------- */
+    document.getElementById('loginForm').addEventListener('submit', handleLogin);
+    document.getElementById('togglePassBtn').addEventListener('click', () => {
+      const inp = document.getElementById('loginPass'), ico = document.getElementById('passIcon');
+      if (inp.type === 'password') { inp.type = 'text'; ico.className = 'fas fa-eye-slash'; }
+      else { inp.type = 'password'; ico.className = 'fas fa-eye'; }
     });
+    document.getElementById('loginUser').addEventListener('keydown', (e) => { if(e.key==='Enter') document.getElementById('loginPass').focus(); });
+    document.getElementById('logoutBtn').addEventListener('click', handleLogout);
+    document.getElementById('adminBtn').addEventListener('click', toggleAdmin);
+    document.getElementById('adminBtnInner').addEventListener('mouseover', function(){ this.style.background='rgba(0,255,136,.25)'; });
+    document.getElementById('adminBtnInner').addEventListener('mouseout', function(){ this.style.background='var(--accent-dim)'; });
+    document.getElementById('admOv').addEventListener('click', toggleAdmin);
+    document.getElementById('closeAdmBtn').addEventListener('click', toggleAdmin);
+    document.getElementById('centerMeBtn').addEventListener('click', centerMe);
+    document.getElementById('limpiarRutaBtn').addEventListener('click', limpiarRuta);
+    document.getElementById('retryBtn').addEventListener('click', () => { fbRetryCount = 0; verificarFirestore(); });
+    document.getElementById('crearUserBtn').addEventListener('click', crearUsuario);
 
-    /* ==========================================================
-       MAPA (Leaflet + CartoDB Dark)
-    ========================================================== */
+    /* ----------------------------------------------------------
+       MAPA
+    ---------------------------------------------------------- */
     function initMap() {
-      map = L.map('map',{center:[-2.17,-79.92],zoom:13,zoomControl:true});
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{
-        attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',
-        subdomains:'abcd',maxZoom:20
+      map = L.map('map', { center: [-2.17, -79.92], zoom: 13, zoomControl: true });
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',
+        subdomains: 'abcd', maxZoom: 20
       }).addTo(map);
-      setTimeout(function(){map.invalidateSize()},200);
-      window.addEventListener('resize',function(){if(map)map.invalidateSize()});
+      setTimeout(() => { map.invalidateSize(); }, 250);
+      window.addEventListener('resize', () => { if(map) map.invalidateSize(); });
     }
 
-    /* ==========================================================
-       GPS TRACKING → Escribe a Firebase de forma optimizada
-       - Posicion: cada actualizacion GPS (ligera con update)
-       - Ruta: cada 8 segundos o cada 5 puntos nuevos
-    ========================================================== */
-    var rutaInitPromise = null;
-
+    /* ----------------------------------------------------------
+       GPS → Escribe a Firestore con setDoc + merge
+       Posicion: cada update GPS (merge: solo lat,lng,speed,timestamp)
+       Ruta: cada 10s (merge: solo ruta)
+    ---------------------------------------------------------- */
     function iniciarGPS() {
-      if (!navigator.geolocation) {
-        toast('Tu navegador no soporta geolocalizacion','error');
-        document.getElementById('gpsTxt').textContent = 'GPS: No disponible';
-        return;
-      }
-      document.getElementById('gpsTxt').textContent = 'GPS: Buscando senal...';
-
-      gpsTimeout = setTimeout(function(){
-        document.getElementById('gpsTxt').textContent = 'GPS: Sin senal';
-        toast('No se obtuvo senal GPS tras 15s. Verifica permisos.','warning');
-      },15000);
+      if (!navigator.geolocation) { toast('Navegador no soporta geolocalizacion', 'error'); document.getElementById('gpsTxt').textContent='GPS: No disponible'; return; }
+      document.getElementById('gpsTxt').textContent = 'GPS: Buscando...';
+      gpsTimeout = setTimeout(() => { document.getElementById('gpsTxt').textContent='GPS: Sin senal'; toast('Sin senal GPS. Verifica permisos.', 'warning'); }, 15000);
 
       watchId = navigator.geolocation.watchPosition(
-        function(pos) {
+        (pos) => {
           if (gpsTimeout) { clearTimeout(gpsTimeout); gpsTimeout = null; }
-          var lat = pos.coords.latitude;
-          var lng = pos.coords.longitude;
-          var accuracy = pos.coords.accuracy;
-          var speed = pos.coords.speed;
+          const lat = pos.coords.latitude, lng = pos.coords.longitude;
+          const acc = pos.coords.accuracy, spd = pos.coords.speed;
 
-          /* Actualizar stats locales */
-          if (lastGPSPos) {
-            var d = haversine(lastGPSPos.lat,lastGPSPos.lng,lat,lng);
-            if (d > 0.005) totalDist += d;
-          }
-          lastGPSPos = {lat:lat,lng:lng};
-          var skmh = (speed !== null && speed >= 0) ? (speed*3.6).toFixed(0) : '0';
+          if (lastGPSPos) { const d = haversine(lastGPSPos.lat, lastGPSPos.lng, lat, lng); if(d > 0.005) totalDist += d; }
+          lastGPSPos = { lat, lng };
+          const skmh = (spd !== null && spd >= 0) ? Math.round(spd * 3.6) : '0';
           document.getElementById('sSpeed').textContent = skmh;
           document.getElementById('sDist').textContent = totalDist.toFixed(2);
-          document.getElementById('coordTxt').textContent = lat.toFixed(5)+', '+lng.toFixed(5);
+          document.getElementById('coordTxt').textContent = lat.toFixed(5) + ', ' + lng.toFixed(5);
 
-          if (accuracy<10) document.getElementById('gpsTxt').textContent='GPS: Excelente ('+Math.round(accuracy)+'m)';
-          else if(accuracy<30) document.getElementById('gpsTxt').textContent='GPS: Bueno ('+Math.round(accuracy)+'m)';
-          else if(accuracy<100) document.getElementById('gpsTxt').textContent='GPS: Regular ('+Math.round(accuracy)+'m)';
-          else document.getElementById('gpsTxt').textContent='GPS: Bajo ('+Math.round(accuracy)+'m)';
+          if (acc < 10) document.getElementById('gpsTxt').textContent = 'GPS: Excelente (' + Math.round(acc) + 'm)';
+          else if (acc < 30) document.getElementById('gpsTxt').textContent = 'GPS: Bueno (' + Math.round(acc) + 'm)';
+          else if (acc < 100) document.getElementById('gpsTxt').textContent = 'GPS: Regular (' + Math.round(acc) + 'm)';
+          else document.getElementById('gpsTxt').textContent = 'GPS: Bajo (' + Math.round(acc) + 'm)';
 
-          if (!mapCentered) { map.setView([lat,lng],16); mapCentered=true; }
+          if (!mapCentered) { map.setView([lat, lng], 16); mapCentered = true; }
 
-          /* Agregar punto a ruta local */
-          miRuta.push({lat:lat,lng:lng,time:Date.now()});
+          miRuta.push({ lat, lng, time: Date.now() });
           if (miRuta.length > 500) miRuta = miRuta.slice(-500);
 
-          /* Inicializar ruta desde Firebase si es la primera vez (Promise para evitar race condition) */
-          if (!rutaInitPromise && db) {
-            rutaInitPromise = db.ref("riders/" + session.usuario).once("value").then(function(snap) {
-              var data = snap.val();
-              if (data && data.ruta && Array.isArray(data.ruta)) {
-                /* Fusionar ruta previa con la nueva, evitando duplicados */
-                var previa = data.ruta.slice(-300);
-                if (previa.length > 0 && miRuta.length > 1) {
-                  miRuta = previa.concat(miRuta.slice(1));
-                } else {
-                  miRuta = previa.concat(miRuta);
+          /* Cargar ruta previa la primera vez */
+          if (!rutaInitDone) {
+            rutaInitDone = true;
+            getDoc(doc(db, "riders", session.usuario)).then(snap => {
+              if (snap.exists()) {
+                const data = snap.data();
+                if (data.ruta && Array.isArray(data.ruta) && data.ruta.length > 0) {
+                  const prev = data.ruta.slice(-300);
+                  miRuta = prev.concat(miRuta.slice(1));
+                  if (miRuta.length > 500) miRuta = miRuta.slice(-500);
                 }
-                if (miRuta.length > 500) miRuta = miRuta.slice(-500);
               }
-            }).catch(function(err) {
-              console.warn("Error cargando ruta previa (continuando sin ella):", err);
-            });
+            }).catch(() => {});
           }
 
-          /* Escribir a Firebase: posicion inmediata, ruta throttled */
-          if (rutaInitPromise) {
-            rutaInitPromise.then(function() {
-              escribirPosicionFirebase(lat, lng, speed);
-              escribirRutaFirebase();
-            });
-          } else {
-            escribirPosicionFirebase(lat, lng, speed);
-            escribirRutaFirebase();
+          /* Escribir posicion (merge: no toca ruta) */
+          setDoc(doc(db, "riders", session.usuario), {
+            nombre: session.nombre, lat, lng,
+            speed: (spd !== null && spd >= 0) ? Math.round(spd * 3.6) : 0,
+            timestamp: Date.now()
+          }, { merge: true }).catch(err => {
+            if (err.code === 'permission-denied' && fbState !== 'denied') { fbState = 'denied'; actualizarUI(); }
+          });
+
+          /* Escribir ruta cada 10s (merge: no toca lat/lng/speed) */
+          const ahora = Date.now();
+          if (ahora - lastRutaWrite >= 10000) {
+            lastRutaWrite = ahora;
+            setDoc(doc(db, "riders", session.usuario), { ruta: miRuta.slice(-300) }, { merge: true }).catch(() => {});
           }
 
-          /* Fallback local: si Firebase aun no ha enviado datos, mostrar al menos mi posicion */
-          if (!firebaseDataReceived) {
-            renderFallbackLocal(lat, lng, speed);
-          }
+          /* Fallback local mientras Firestore no envia datos */
+          if (!firebaseDataReceived) renderFallback(lat, lng, spd);
         },
-        function(err) {
-          if (gpsTimeout){clearTimeout(gpsTimeout);gpsTimeout=null;}
-          var msgs={1:'Permiso de ubicacion denegado. Activalo en ajustes del navegador.',2:'Ubicacion no disponible en este dispositivo.',3:'Tiempo de espera agotado al buscar GPS.'};
-          toast(msgs[err.code]||'Error de GPS','warning',6000);
-          document.getElementById('gpsTxt').textContent='GPS: Sin senal';
+        (err) => {
+          if (gpsTimeout) { clearTimeout(gpsTimeout); gpsTimeout = null; }
+          const m = { 1:'Permiso de ubicacion denegado.', 2:'Ubicacion no disponible.', 3:'Timeout GPS.' };
+          toast(m[err.code] || 'Error GPS', 'warning', 6000);
+          document.getElementById('gpsTxt').textContent = 'GPS: Sin senal';
         },
-        {enableHighAccuracy:true,maximumAge:3000,timeout:15000}
+        { enableHighAccuracy: true, maximumAge: 3000, timeout: 15000 }
       );
     }
 
-    /* Escribe posicion (ligera, sin la ruta) */
-    function escribirPosicionFirebase(lat, lng, speed) {
-      if (!db || !session) return;
-      db.ref("riders/" + session.usuario).update({
-        nombre: session.nombre,
-        lat: lat,
-        lng: lng,
-        speed: (speed !== null && speed >= 0) ? (speed * 3.6) : 0,
-        timestamp: Date.now()
-      }).catch(function(err) {
-        console.warn("Error escribiendo posicion:", err);
-        if (err.code === "PERMISSION_DENIED" && fbPermOk !== false) {
-          fbPermOk = false;
-          actualizarIndicadorFirebase();
-          mostrarBannerPermisos();
-        }
-      });
-    }
-
-    /* Escribe ruta solo cada 8 segundos para no saturar Firebase */
-    function escribirRutaFirebase() {
-      if (!db || !session) return;
-      var ahora = Date.now();
-      if (ahora - lastRutaWrite < 8000) return;
-      lastRutaWrite = ahora;
-
-      var rutaParaEnviar = miRuta.slice(-300);
-      db.ref("riders/" + session.usuario + "/ruta").set(rutaParaEnviar).catch(function(err) {
-        console.warn("Error escribiendo ruta:", err);
-      });
-    }
-
-    /* Fallback local: muestra tu propia posicion en la sidebar mientras Firebase no responde */
-    function renderFallbackLocal(lat, lng, speed) {
+    /* Fallback: mostrar tu posicion en sidebar mientras Firestore responde */
+    function renderFallback(lat, lng, spd) {
       if (!session) return;
-      var listaEl = document.getElementById('riderList');
-      var spd = (speed !== null && speed >= 0) ? (speed * 3.6).toFixed(0) : '--';
-      listaEl.innerHTML = '<div class="rider-card me" onclick="centerMe()">'
-        +'<div style="display:flex;align-items:center;gap:9px">'
-        +'<div style="width:30px;height:30px;background:#00ff88;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#0a0e17;flex-shrink:0">'+session.nombre.charAt(0)+'</div>'
-        +'<div style="flex:1;min-width:0">'
-        +'<div style="font-size:12px;font-weight:600;display:flex;align-items:center;gap:5px">'+session.nombre+' <span class="sdot mov"></span></div>'
-        +'<div style="font-size:10px;color:var(--muted);font-family:JetBrains Mono,monospace">'+spd+' km/h <span style="color:var(--accent);margin-left:6px">GPS Activo</span></div>'
-        +'</div>'
-        +'<span style="font-size:9px;padding:2px 7px;background:var(--accent-dim);color:var(--accent);border-radius:5px;font-weight:600;flex-shrink:0">TU</span>'
-        +'</div></div>'
-        +'<div class="empty-st" style="padding:16px"><i class="fas fa-hourglass-half" style="font-size:20px"></i><p style="font-size:11px">Esperando respuesta de Firebase para mostrar otros riders...</p></div>';
+      const el = document.getElementById('riderList');
+      const s = (spd !== null && spd >= 0) ? Math.round(spd * 3.6) : '--';
+      el.innerHTML = `<div class="rider-card me"><div style="display:flex;align-items:center;gap:9px"><div style="width:30px;height:30px;background:#00ff88;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#0a0e17;flex-shrink:0">${session.nombre.charAt(0)}</div><div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:600;display:flex;align-items:center;gap:5px">${session.nombre} <span class="sdot mov"></span></div><div style="font-size:10px;color:var(--muted);font-family:JetBrains Mono,monospace">${s} km/h <span style="color:var(--accent);margin-left:6px">GPS Activo</span></div></div><span style="font-size:9px;padding:2px 7px;background:var(--accent-dim);color:var(--accent);border-radius:5px;font-weight:600;flex-shrink:0">TU</span></div></div><div class="empty-st" style="padding:16px"><i class="fas fa-hourglass-half" style="font-size:20px"></i><p style="font-size:11px">Conectando con Firestore...</p></div>`;
       document.getElementById('sRiders').textContent = '1';
-
-      /* Tambien crear tu propio marcador en el mapa */
-      if (map && !markers[session.usuario]) {
-        var icon = L.divIcon({
-          className:'',
-          html:'<div class="cm me">'+session.nombre.charAt(0).toUpperCase()+'</div>',
-          iconSize:[36,36],iconAnchor:[18,18]
-        });
-        markers[session.usuario] = L.marker([lat,lng],{icon:icon}).addTo(map);
-        markers[session.usuario].bindTooltip(session.nombre,{permanent:false,direction:'top',offset:[0,-22],className:'ct'});
-      } else if (markers[session.usuario]) {
-        markers[session.usuario].setLatLng([lat,lng]);
+      if (map) {
+        if (!markers[session.usuario]) {
+          const ic = L.divIcon({ className:'', html:`<div class="cm me">${session.nombre.charAt(0).toUpperCase()}</div>`, iconSize:[36,36], iconAnchor:[18,18] });
+          markers[session.usuario] = L.marker([lat, lng], {icon:ic}).addTo(map);
+          markers[session.usuario].bindTooltip(session.nombre, {permanent:false,direction:'top',offset:[0,-22],className:'ct'});
+        } else { markers[session.usuario].setLatLng([lat, lng]); }
       }
     }
 
-    /* Limpiar ruta del usuario actual */
     function limpiarRuta() {
       if (!session) return;
-      miRuta = [];
-      lastGPSPos = null;
-      totalDist = 0;
+      miRuta = []; lastGPSPos = null; totalDist = 0;
       document.getElementById('sDist').textContent = '0.0';
-      if (db) {
-        db.ref("riders/" + session.usuario + "/ruta").set([]).catch(function(err){
-          console.warn("Error limpiando ruta:",err);
-        });
-      }
-      /* Limpiar polyline del mapa */
-      if (rutas[session.usuario]) {
-        map.removeLayer(rutas[session.usuario]);
-        delete rutas[session.usuario];
-      }
-      toast('Ruta limpiada','info');
+      setDoc(doc(db, "riders", session.usuario), { ruta: [] }, { merge: true }).catch(() => {});
+      if (rutas[session.usuario] && map) { map.removeLayer(rutas[session.usuario]); delete rutas[session.usuario]; }
+      toast('Ruta limpiada', 'info');
     }
 
-    /* ==========================================================
-       FIREBASE LISTENER → Render en tiempo real
-       Usa requestAnimationFrame para debounce suave
-       SIN throttle agresivo de 1 segundo
-    ========================================================== */
-    function iniciarFirebaseListener() {
-      if (!db) {
-        document.getElementById('riderList').innerHTML =
-          '<div class="empty-st"><i class="fas fa-exclamation-triangle" style="color:var(--danger)"></i>'
-          +'<p>Firebase no esta disponible.<br>Verifica la configuracion y las reglas de acceso.</p></div>';
-        return;
-      }
+    /* ----------------------------------------------------------
+       FIRESTORE LISTENER — onSnapshot con includeMetadataChanges
+       
+       CLAVE DEL TIEMPO REAL:
+       - snapshot.metadata.fromCache === false → datos del SERVIDOR (EN VIVO)
+       - snapshot.metadata.fromCache === true  → datos del CACHE (OFFLINE)
+       - Con enableIndexedDBPersistence, los datos SIEMPRE estan disponibles
+       - Firestore se reconecta SOLO sin codigo extra
+       - Cada cambio en cualquier documento de "riders" dispara este callback
+    ---------------------------------------------------------- */
+    function iniciarFirestoreListener() {
+      const ridersRef = collection(db, "riders");
 
-      firebaseListener = function(snapshot) {
-        firebaseDataReceived = true;
-        /* Debounce con requestAnimationFrame: no bloquea el hilo, permite todas las actualizaciones */
-        if (renderPending) return;
-        renderPending = true;
-        requestAnimationFrame(function() {
-          renderPending = false;
-          renderRidersDesdeFirebase(snapshot.val());
-        });
-      };
+      firestoreUnsubscribe = onSnapshot(
+        ridersRef,
+        { includeMetadataChanges: true },  /* CLAVE: detecta servidor vs cache */
+        (snapshot) => {
+          /*
+            METADATA: de donde vienen los datos?
+            fromCache=false = del servidor = EN VIVO
+            fromCache=true  = del cache local = OFFLINE
+          */
+          if (!snapshot.metadata.fromCache) {
+            /* Datos vienen del servidor → CONEXION REAL */
+            lastServerData = Date.now();
+            if (fbState !== 'connected') {
+              fbState = 'connected';
+              fbRetryCount = 0;
+              actualizarUI();
+            }
+          } else if (lastServerData === 0) {
+            /* Primer snapshot y viene del cache → todavia no sabemos si hay servidor */
+            if (fbState === 'checking' || fbState === 'init') {
+              fbState = 'cache';
+              actualizarUI();
+            }
+          }
+          /* Si fromCache=true PERO lastServerData>0, significa que el servidor
+             respondio antes y ahora estamos offline temporalmente. No cambiamos
+             el estado aqui — lo hace el connCheckInterval */
 
-      db.ref("riders").on("value", firebaseListener, function(err) {
-        console.error("Error en listener Firebase:", err);
-        if (err.code === "PERMISSION_DENIED") {
-          fbPermOk = false;
-          actualizarIndicadorFirebase();
-          mostrarBannerPermisos();
-          document.getElementById('riderList').innerHTML =
-            '<div class="empty-st"><i class="fas fa-lock" style="color:var(--danger)"></i>'
-            +'<p>Permiso denegado por Firebase.<br>Actualiza las reglas en la consola de Firebase.</p></div>';
+          firebaseDataReceived = true;
+
+          /* Extraer todos los riders del snapshot */
+          if (renderPending) return;
+          renderPending = true;
+          requestAnimationFrame(() => {
+            renderPending = false;
+            const riders = {};
+            snapshot.forEach((d) => { riders[d.id] = d.data(); });
+            renderRiders(riders);
+          });
+        },
+        (error) => {
+          console.error("onSnapshot error:", error.code, error.message);
+          const code = error.code || '';
+          if (code === 'permission-denied') fbState = 'denied';
+          else if (code === 'not-found') fbState = 'notfound';
+          else { fbState = 'error'; programarReintento(); }
+          actualizarUI();
+          document.getElementById('riderList').innerHTML = `<div class="empty-st"><i class="fas fa-exclamation-triangle" style="color:var(--danger)"></i><p>Error: ${error.message || code}</p></div>`;
         }
-      });
+      );
     }
 
-    /* ==========================================================
-       RENDER RIDERS DESDE FIREBASE
-       - Siempre muestra TODOS los riders (nunca los oculta)
-       - Activo: < 60s | Inactivo: 60s-5min | Offline: > 5min
-       - Propio rider primero, luego resto ordenados por nombre
-    ========================================================== */
-    function renderRidersDesdeFirebase(riders) {
+    /* ----------------------------------------------------------
+       RENDER — 3 estados visibles, siempre se muestran
+       Activo <60s | Inactivo 60s-5min | Offline >5min
+    ---------------------------------------------------------- */
+    function renderRiders(riders) {
       if (!map) return;
+      const el = document.getElementById('riderList');
+      const ahora = Date.now();
 
-      var listaEl = document.getElementById('riderList');
-      var ahora = Date.now();
-
-      /* Si no hay datos, mostrar mensaje pero no vaciar marcadores existentes */
-      if (!riders || typeof riders !== 'object') {
-        limpiarMarcadoresNoExistentes({});
-        listaEl.innerHTML =
-          '<div class="empty-st"><i class="fas fa-satellite-dish"></i>'
-          +'<p>No hay riders en Firebase.<br>Abre esta pagina en otro dispositivo para ver el seguimiento en tiempo real.</p></div>';
+      if (!riders || Object.keys(riders).length === 0) {
+        limpiarViejos({});
+        el.innerHTML = '<div class="empty-st"><i class="fas fa-satellite-dish"></i><p>No hay riders. Abre la app en otro dispositivo.</p></div>';
         document.getElementById('sRiders').textContent = '0';
         return;
       }
 
-      /* Construir array de riders para ordenar */
-      var riderArr = [];
-      var idsEnFirebase = {};
-
-      for (var id in riders) {
-        var r = riders[id];
+      /* Construir array ordenable */
+      const arr = [];
+      const ids = {};
+      for (const id in riders) {
+        const r = riders[id];
         if (!r || r.lat == null || r.lng == null) continue;
-        idsEnFirebase[id] = true;
-
-        var esMi = session && id === session.usuario;
-        var edad = r.timestamp ? (ahora - r.timestamp) : 999999;
-        var estado = 'offline'; /* > 5 min */
-        if (edad < 60000) estado = 'activo'; /* < 60s */
-        else if (edad < 300000) estado = 'inactivo'; /* 60s - 5min */
-
-        riderArr.push({
-          id: id,
-          data: r,
-          esMi: esMi,
-          estado: estado,
-          edad: edad,
-          color: esMi ? '#00ff88' : colorRider(id)
-        });
+        ids[id] = true;
+        const esMi = session && id === session.usuario;
+        const edad = r.timestamp ? (ahora - r.timestamp) : 999999;
+        let est = 'offline';
+        if (edad < 60000) est = 'activo';
+        else if (edad < 300000) est = 'inactivo';
+        arr.push({ id, data: r, esMi, est, edad, color: esMi ? '#00ff88' : colorRider(id) });
       }
 
-      /* Ordenar: propio primero, luego activos, luego inactivos, luego offline */
-      riderArr.sort(function(a, b) {
+      /* Ordenar: propio primero, activos, inactivos, offline */
+      arr.sort((a, b) => {
         if (a.esMi && !b.esMi) return -1;
         if (!a.esMi && b.esMi) return 1;
-        var orden = {activo:0, inactivo:1, offline:2};
-        if (orden[a.estado] !== orden[b.estado]) return orden[a.estado] - orden[b.estado];
-        var na = (a.data.nombre || a.id).toLowerCase();
-        var nb = (b.data.nombre || b.id).toLowerCase();
-        return na.localeCompare(nb);
+        const o = { activo:0, inactivo:1, offline:2 };
+        if (o[a.est] !== o[b.est]) return o[a.est] - o[b.est];
+        return (a.data.nombre || a.id).localeCompare(b.data.nombre || b.id);
       });
 
-      /* Contar activos */
-      var activos = 0;
-      for (var i = 0; i < riderArr.length; i++) {
-        if (riderArr[i].estado === 'activo') activos++;
-      }
-      document.getElementById('sRiders').textContent = activos;
+      let act = 0;
+      for (let i = 0; i < arr.length; i++) if (arr[i].est === 'activo') act++;
+      document.getElementById('sRiders').textContent = act;
 
-      /* Construir HTML de sidebar */
-      var html = '';
-      for (var i = 0; i < riderArr.length; i++) {
-        var rd = riderArr[i];
-        var r = rd.data;
-        var id = rd.id;
-        var esMi = rd.esMi;
-        var estado = rd.estado;
-        var color = rd.color;
-        var spd = (r.speed !== null && r.speed !== undefined && r.speed >= 0) ? r.speed.toFixed(0) : '--';
+      /* Construir HTML */
+      let html = '';
+      for (let i = 0; i < arr.length; i++) {
+        const { id, data: r, esMi, est, edad, color } = arr[i];
+        const spd = (r.speed != null && r.speed >= 0) ? r.speed.toFixed(0) : '--';
 
-        /* Clases de la tarjeta */
-        var cardCls = 'rider-card';
-        if (esMi) cardCls += ' me';
-        if (estado === 'inactivo') cardCls += ' inactivo';
-        if (estado === 'offline') cardCls += ' offline';
+        const cc = 'rider-card' + (esMi ? ' me' : '') + (est === 'inactivo' ? ' inactivo' : '') + (est === 'offline' ? ' offline' : '');
+        let dc, et, ec;
+        if (esMi && est === 'activo') { dc = 'sdot mov'; et = 'Activo'; ec = 'color:var(--accent)'; }
+        else if (est === 'activo') { dc = 'sdot on'; et = 'Activo'; ec = 'color:var(--accent)'; }
+        else if (est === 'inactivo') { dc = 'sdot warn'; et = 'Inactivo'; ec = 'color:var(--warning)'; }
+        else { dc = 'sdot off'; et = 'Offline'; ec = 'color:var(--muted)'; }
 
-        /* Indicador de estado */
-        var dotCls, estadoTxt, estadoColor;
-        if (esMi && estado === 'activo') {
-          dotCls = 'sdot mov'; estadoTxt = 'Activo'; estadoColor = 'color:var(--accent)';
-        } else if (estado === 'activo') {
-          dotCls = 'sdot on'; estadoTxt = 'Activo'; estadoColor = 'color:var(--accent)';
-        } else if (estado === 'inactivo') {
-          dotCls = 'sdot warn'; estadoTxt = 'Inactivo'; estadoColor = 'color:var(--warning)';
-        } else {
-          dotCls = 'sdot off'; estadoTxt = 'Offline'; estadoColor = 'color:var(--muted)';
-        }
+        const bg = esMi ? '<span style="font-size:9px;padding:2px 7px;background:var(--accent-dim);color:var(--accent);border-radius:5px;font-weight:600;flex-shrink:0">TU</span>' : '';
+        const tt = edad < 60000 ? Math.floor(edad/1000)+'s' : edad < 3600000 ? Math.floor(edad/60000)+'m' : Math.floor(edad/3600000)+'h';
 
-        var badge = esMi
-          ? '<span style="font-size:9px;padding:2px 7px;background:var(--accent-dim);color:var(--accent);border-radius:5px;font-weight:600;flex-shrink:0">TU</span>'
-          : '';
+        html += `<div class="${cc}" data-rider="${id}"><div style="display:flex;align-items:center;gap:9px"><div style="width:30px;height:30px;background:${color};border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#0a0e17;flex-shrink:0">${(r.nombre||id).charAt(0).toUpperCase()}</div><div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:600;display:flex;align-items:center;gap:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.nombre||id} <span class="${dc}"></span></div><div style="font-size:10px;color:var(--muted);font-family:JetBrains Mono,monospace">${spd} km/h &middot; <span style="${ec}">${et}</span> <span style="opacity:.5">${tt}</span></div></div>${bg}</div></div>`;
 
-        /* Tiempo desde ultimo update */
-        var tiempoTxt = '';
-        if (rd.edad < 60000) {
-          tiempoTxt = Math.floor(rd.edad/1000) + 's';
-        } else if (rd.edad < 3600000) {
-          tiempoTxt = Math.floor(rd.edad/60000) + 'm';
-        } else {
-          tiempoTxt = Math.floor(rd.edad/3600000) + 'h';
-        }
-
-        html += '<div class="'+cardCls+'" onclick="focusRider(\''+id+'\')">'
-          +'<div style="display:flex;align-items:center;gap:9px">'
-          +'<div style="width:30px;height:30px;background:'+color+';border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#0a0e17;flex-shrink:0">'+(r.nombre||id).charAt(0).toUpperCase()+'</div>'
-          +'<div style="flex:1;min-width:0">'
-          +'<div style="font-size:12px;font-weight:600;display:flex;align-items:center;gap:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+(r.nombre||id)+' <span class="'+dotCls+'"></span></div>'
-          +'<div style="font-size:10px;color:var(--muted);font-family:JetBrains Mono,monospace">'+spd+' km/h &middot; <span style="'+estadoColor+'">'+estadoTxt+'</span> <span style="opacity:.5">'+tiempoTxt+'</span></div>'
-          +'</div>'
-          +badge
-          +'</div></div>';
-
-        /* === MARCADOR EN MAPA === */
-        var ini = (r.nombre||id).charAt(0).toUpperCase();
+        /* Marcador en mapa */
+        const ini = (r.nombre || id).charAt(0).toUpperCase();
         if (markers[id]) {
           markers[id].setLatLng([r.lat, r.lng]);
         } else {
-          var iconCls = esMi ? 'cm me' : 'cm other';
-          var icon = L.divIcon({
-            className:'',
-            html:'<div class="'+iconCls+'" style="'+(esMi?'':'background:'+color)+'">'+ini+'</div>',
-            iconSize:[36,36],iconAnchor:[18,18]
-          });
-          markers[id] = L.marker([r.lat,r.lng],{icon:icon}).addTo(map);
-          markers[id].bindTooltip(r.nombre||id,{permanent:false,direction:'top',offset:[0,-22],className:'ct'});
+          const iconCls = esMi ? 'cm me' : 'cm other';
+          const icon = L.divIcon({ className:'', html:`<div class="${iconCls}" ${esMi ? '' : `style="background:${color}"`}>${ini}</div>`, iconSize:[36,36], iconAnchor:[18,18] });
+          markers[id] = L.marker([r.lat, r.lng], {icon}).addTo(map);
+          markers[id].bindTooltip(r.nombre || id, {permanent:false,direction:'top',offset:[0,-22],className:'ct'});
         }
 
-        /* === RUTA / POLYLINE === */
+        /* Ruta polyline */
         if (r.ruta && Array.isArray(r.ruta) && r.ruta.length > 1) {
-          var coords = [];
-          for (var j = 0; j < r.ruta.length; j++) {
-            if (r.ruta[j].lat != null && r.ruta[j].lng != null) {
-              coords.push([r.ruta[j].lat, r.ruta[j].lng]);
-            }
-          }
+          const coords = [];
+          for (let j = 0; j < r.ruta.length; j++) { if (r.ruta[j].lat != null && r.ruta[j].lng != null) coords.push([r.ruta[j].lat, r.ruta[j].lng]); }
           if (coords.length > 1) {
-            var opacidad = estado === 'activo' ? 0.5 : (estado === 'inactivo' ? 0.25 : 0.12);
-            if (rutas[id]) {
-              rutas[id].setLatLngs(coords);
-              rutas[id].setStyle({opacity:opacidad});
-            } else {
-              rutas[id] = L.polyline(coords,{
-                color:color,weight:3,opacity:opacidad,smoothFactor:1
-              }).addTo(map);
-            }
+            const op = est === 'activo' ? 0.5 : est === 'inactivo' ? 0.25 : 0.12;
+            if (rutas[id]) { rutas[id].setLatLngs(coords); rutas[id].setStyle({opacity:op}); }
+            else { rutas[id] = L.polyline(coords, { color, weight:3, opacity:op, smoothFactor:1 }).addTo(map); }
           }
         }
       }
 
-      /* Eliminar marcadores/rutas de riders que ya no estan en Firebase */
-      limpiarMarcadoresNoExistentes(idsEnFirebase);
+      /* Limpiar riders que ya no existen */
+      limpiarViejos(ids);
 
-      /* Si no hay riders, mostrar mensaje */
-      if (riderArr.length === 0) {
-        html += '<div class="empty-st"><i class="fas fa-satellite-dish"></i>'
-          +'<p>No hay riders en el mapa.<br>Abre esta pagina en otro dispositivo para probar el tracking.</p></div>';
+      /* Event listeners para focus en mapa */
+      el.innerHTML = html;
+      el.querySelectorAll('[data-rider]').forEach(card => {
+        card.addEventListener('click', () => focusRider(card.dataset.rider));
+      });
+
+      if (arr.length === 0) {
+        el.innerHTML += '<div class="empty-st"><i class="fas fa-satellite-dish"></i><p>No hay riders en el mapa.</p></div>';
       }
-
-      listaEl.innerHTML = html;
     }
 
-    /* Eliminar marcadores/rutas que ya no existen en Firebase */
-    function limpiarMarcadoresNoExistentes(idsEnFirebase) {
-      for (var oldId in markers) {
-        if (!idsEnFirebase[oldId]) {
+    function limpiarViejos(ids) {
+      for (const oldId in markers) {
+        if (!ids[oldId]) {
           if (markers[oldId] && map) map.removeLayer(markers[oldId]);
           if (rutas[oldId] && map) map.removeLayer(rutas[oldId]);
-          delete markers[oldId];
-          delete rutas[oldId];
+          delete markers[oldId]; delete rutas[oldId];
         }
       }
     }
 
-    /* ==========================================================
-       INTERACCIONES MAPA
-    ========================================================== */
     function focusRider(id) {
-      if (markers[id] && map) {
-        map.setView(markers[id].getLatLng(),17,{animate:true});
-        markers[id].openTooltip();
-      }
+      if (markers[id] && map) { map.setView(markers[id].getLatLng(), 17, {animate:true}); markers[id].openTooltip(); }
     }
 
     function centerMe() {
       if (!session) return;
-      if (markers[session.usuario] && map) {
-        map.setView(markers[session.usuario].getLatLng(),17,{animate:true});
-      } else {
-        toast('Esperando senal GPS...','warning');
-      }
+      if (markers[session.usuario] && map) map.setView(markers[session.usuario].getLatLng(), 17, {animate:true});
+      else toast('Esperando senal GPS...', 'warning');
     }
 
-    /* ==========================================================
+    /* ----------------------------------------------------------
        RELOJ
-    ========================================================== */
+    ---------------------------------------------------------- */
     function iniciarClock() {
       function tick() {
-        var now = new Date();
-        var clockEl = document.getElementById('clock');
-        if (clockEl) clockEl.textContent = now.toLocaleTimeString('es-EC',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
-        var el = Math.floor((Date.now()-startTime)/1000);
-        var h = String(Math.floor(el/3600)).padStart(2,'0');
-        var m = String(Math.floor((el%3600)/60)).padStart(2,'0');
-        document.getElementById('sTime').textContent = h+':'+m;
+        const now = new Date();
+        const clockEl = document.getElementById('clock');
+        if (clockEl) clockEl.textContent = now.toLocaleTimeString('es-EC', {hour:'2-digit',minute:'2-digit',second:'2-digit'});
+        const el = Math.floor((Date.now() - startTime) / 1000);
+        document.getElementById('sTime').textContent = String(Math.floor(el/3600)).padStart(2,'0') + ':' + String(Math.floor((el%3600)/60)).padStart(2,'0');
       }
       tick();
-      clockInterval = setInterval(tick,1000);
+      clockInterval = setInterval(tick, 1000);
     }
 
-    /* ==========================================================
-       ADMIN: CREAR / ELIMINAR USUARIOS (localStorage)
-    ========================================================== */
+    /* ----------------------------------------------------------
+       ADMIN
+    ---------------------------------------------------------- */
+    function toggleAdmin() {
+      const p = document.getElementById('admPnl'), o = document.getElementById('admOv');
+      if (p.classList.contains('open')) { p.classList.remove('open'); o.classList.remove('open'); }
+      else { refreshAdmList(); p.classList.add('open'); o.classList.add('open'); }
+    }
+
     function crearUsuario() {
-      var nombre = document.getElementById('nName').value.trim();
-      var usuario = document.getElementById('nUser').value.trim().toLowerCase();
-      var password = document.getElementById('nPass').value.trim();
-      if (!nombre){toast('Ingresa el nombre completo','error');return;}
-      if (!usuario||usuario.length<3){toast('El usuario debe tener al menos 3 caracteres','error');return;}
-      if (!password||password.length<4){toast('La contrasena debe tener al menos 4 caracteres','error');return;}
-      if (/[^a-z0-9_]/.test(usuario)){toast('Solo letras minusculas, numeros y guion bajo','error');return;}
-      var usuarios = getUsuarios();
-      for (var i=0;i<usuarios.length;i++){if(usuarios[i].usuario===usuario){toast('Este usuario ya existe','error');return;}}
-      usuarios.push({nombre:nombre,usuario:usuario,password:password,role:'user',created:Date.now()});
+      const nombre = document.getElementById('nName').value.trim();
+      const usuario = document.getElementById('nUser').value.trim().toLowerCase();
+      const password = document.getElementById('nPass').value.trim();
+      if (!nombre) { toast('Ingresa el nombre completo', 'error'); return; }
+      if (!usuario || usuario.length < 3) { toast('Usuario: minimo 3 caracteres', 'error'); return; }
+      if (!password || password.length < 4) { toast('Contrasena: minimo 4 caracteres', 'error'); return; }
+      if (/[^a-z0-9_]/.test(usuario)) { toast('Solo letras minusculas, numeros y guion bajo', 'error'); return; }
+      const usuarios = getUsuarios();
+      for (let i = 0; i < usuarios.length; i++) { if (usuarios[i].usuario === usuario) { toast('Este usuario ya existe', 'error'); return; } }
+      usuarios.push({ nombre, usuario, password, role:'user', created:Date.now() });
       setUsuarios(usuarios);
-      document.getElementById('nName').value='';
-      document.getElementById('nUser').value='';
-      document.getElementById('nPass').value='';
+      document.getElementById('nName').value = ''; document.getElementById('nUser').value = ''; document.getElementById('nPass').value = '';
       refreshAdmList();
-      toast('Usuario "'+nombre+'" creado correctamente','success');
+      toast('Usuario "' + nombre + '" creado', 'success');
     }
 
     function delUser(u) {
-      if (!session) return;
-      if (u===session.usuario){toast('No puedes eliminarte a ti mismo','error');return;}
-      var usuarios = getUsuarios();
-      var target=null,idx=-1;
-      for(var i=0;i<usuarios.length;i++){if(usuarios[i].usuario===u){target=usuarios[i];idx=i;break;}}
-      if(!target) return;
-      if(target.role==='admin'){toast('No se puede eliminar un administrador','error');return;}
-      if(db) db.ref("riders/"+u).remove();
-      usuarios.splice(idx,1);
+      if (!session || u === session.usuario) { toast('No puedes eliminarte a ti mismo', 'error'); return; }
+      const usuarios = getUsuarios();
+      let target = null, idx = -1;
+      for (let i = 0; i < usuarios.length; i++) { if (usuarios[i].usuario === u) { target = usuarios[i]; idx = i; break; } }
+      if (!target) return;
+      if (target.role === 'admin') { toast('No se puede eliminar un admin', 'error'); return; }
+      deleteDoc(doc(db, "riders", u)).catch(() => {});
+      usuarios.splice(idx, 1);
       setUsuarios(usuarios);
-      if(markers[u]&&map){map.removeLayer(markers[u]);delete markers[u];}
-      if(rutas[u]&&map){map.removeLayer(rutas[u]);delete rutas[u];}
+      if (markers[u] && map) { map.removeLayer(markers[u]); delete markers[u]; }
+      if (rutas[u] && map) { map.removeLayer(rutas[u]); delete rutas[u]; }
       refreshAdmList();
-      toast('Usuario "'+target.nombre+'" eliminado','warning');
+      toast('Usuario "' + target.nombre + '" eliminado', 'warning');
     }
 
     function refreshAdmList() {
-      var usuarios = getUsuarios();
-      var box = document.getElementById('admList');
+      const usuarios = getUsuarios();
+      const box = document.getElementById('admList');
       if (!box) return;
-      var html = '';
-      if (usuarios.length===0) {
-        html='<div class="empty-st"><i class="fas fa-users"></i><p>No hay usuarios registrados</p></div>';
-      } else {
-        for (var i=0;i<usuarios.length;i++) {
-          var u=usuarios[i];
-          var isAdmin=(u.role==='admin');
-          var isMe=(session&&u.usuario===session.usuario);
-          var badge=isAdmin
-            ?'<span style="font-size:9px;padding:2px 7px;background:var(--accent-dim);color:var(--accent);border-radius:4px;font-weight:600">ADMIN</span>'
-            :'<span style="font-size:9px;padding:2px 7px;background:rgba(0,229,255,.12);color:var(--info);border-radius:4px;font-weight:600">RIDER</span>';
-          var bg=isAdmin?'var(--accent)':'var(--info)';
-          var canDel=!isAdmin&&!isMe;
-          var meLabel=isMe?' <span style="font-size:9px;color:var(--muted)">(tu)</span>':'';
-          var delBtn=canDel?'<button class="del-btn" onclick="event.stopPropagation();delUser(\''+u.usuario+'\')" title="Eliminar"><i class="fas fa-trash-alt"></i></button>':'';
-          html+='<div class="adm-u">'
-            +'<div style="display:flex;align-items:center;gap:9px;min-width:0">'
-            +'<div style="width:30px;height:30px;background:'+bg+';border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#0a0e17;flex-shrink:0">'+u.nombre.charAt(0)+'</div>'
-            +'<div style="min-width:0">'
-            +'<div style="font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+u.nombre+meLabel+'</div>'
-            +'<div style="font-size:10px;color:var(--muted);font-family:JetBrains Mono,monospace">@'+u.usuario+' '+badge+'</div>'
-            +'</div></div>'+delBtn+'</div>';
+      let html = '';
+      if (usuarios.length === 0) { html = '<div class="empty-st"><i class="fas fa-users"></i><p>No hay usuarios</p></div>'; }
+      else {
+        for (let i = 0; i < usuarios.length; i++) {
+          const u = usuarios[i];
+          const isAdmin = u.role === 'admin';
+          const isMe = session && u.usuario === session.usuario;
+          const badge = isAdmin
+            ? '<span style="font-size:9px;padding:2px 7px;background:var(--accent-dim);color:var(--accent);border-radius:4px;font-weight:600">ADMIN</span>'
+            : '<span style="font-size:9px;padding:2px 7px;background:rgba(0,229,255,.12);color:var(--info);border-radius:4px;font-weight:600">RIDER</span>';
+          const bg = isAdmin ? 'var(--accent)' : 'var(--info)';
+          const canDel = !isAdmin && !isMe;
+          const meLabel = isMe ? ' <span style="font-size:9px;color:var(--muted)">(tu)</span>' : '';
+          const delBtn = canDel ? `<button class="del-btn" data-deluser="${u.usuario}" title="Eliminar"><i class="fas fa-trash-alt"></i></button>` : '';
+          html += `<div class="adm-u"><div style="display:flex;align-items:center;gap:9px;min-width:0"><div style="width:30px;height:30px;background:${bg};border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#0a0e17;flex-shrink:0">${u.nombre.charAt(0)}</div><div style="min-width:0"><div style="font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${u.nombre}${meLabel}</div><div style="font-size:10px;color:var(--muted);font-family:JetBrains Mono,monospace">@${u.usuario} ${badge}</div></div></div>${delBtn}</div>`;
         }
       }
       box.innerHTML = html;
-    }
-
-    function toggleAdmin() {
-      var p=document.getElementById('admPnl'),o=document.getElementById('admOv');
-      if(p.classList.contains('open')){p.classList.remove('open');o.classList.remove('open');}
-      else{refreshAdmList();p.classList.add('open');o.classList.add('open');}
+      /* Event listeners para botones de eliminar */
+      box.querySelectorAll('[data-deluser]').forEach(btn => {
+        btn.addEventListener('click', (e) => { e.stopPropagation(); delUser(btn.dataset.deluser); });
+      });
     }
   </script>
 </body>
