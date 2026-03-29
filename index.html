@@ -5,9 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Riders Tracker PRO</title>
 
-  <!-- Firebase Compat: se cargan en orden, SIN bloquear el login -->
+  <!-- Firebase Compat: app + firestore + STORAGE -->
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script>
 
   <!-- Leaflet -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
@@ -57,10 +58,20 @@
     .sdot.mov{background:var(--accent);box-shadow:0 0 6px var(--accent);animation:pls 1.5s infinite}
     .sdot.warn{background:var(--warning);box-shadow:0 0 4px var(--warning)}
     @keyframes pls{0%,100%{opacity:1}50%{opacity:.4}}
+    /* Marcador por defecto (sin foto) */
     .cm{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;color:#0a0e17;border:2.5px solid rgba(255,255,255,.2);box-shadow:0 3px 14px rgba(0,0,0,.5)}
     .cm.me{background:var(--accent)!important;animation:mp 2s infinite}
     .cm.other{background:var(--info)}
     @keyframes mp{0%,100%{box-shadow:0 3px 14px rgba(0,255,136,.35)}50%{box-shadow:0 3px 24px rgba(0,255,136,.7)}}
+    /* Marcador con foto */
+    .foto-marcador{width:42px;height:42px;border-radius:50%;background-size:cover;background-position:center;background-color:var(--card);border:3px solid var(--accent);box-shadow:0 3px 14px rgba(0,0,0,.5)}
+    .foto-marcador.me{animation:fmp 2s infinite}
+    @keyframes fmp{0%,100%{box-shadow:0 3px 14px rgba(0,255,136,.35)}50%{box-shadow:0 3px 24px rgba(0,255,136,.7)}}
+    /* Botones de capa del mapa */
+    .map-layers{position:absolute;top:12px;right:12px;z-index:400;display:flex;gap:5px}
+    .layer-btn{width:34px;height:34px;background:rgba(17,24,39,.92);border:1px solid var(--border);border-radius:8px;color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:13px;transition:all .2s;backdrop-filter:blur(8px)}
+    .layer-btn:hover{border-color:var(--accent);color:var(--accent)}
+    .layer-btn.active{background:var(--accent-dim);border-color:var(--accent);color:var(--accent)}
     .st-c{background:var(--bg);border:1px solid var(--border);border-radius:11px;padding:14px 10px;text-align:center}
     .st-v{font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:700;color:var(--accent)}
     .st-l{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin-top:3px}
@@ -78,8 +89,9 @@
     .adm-in:focus{border-color:var(--accent)}
     .adm-u{display:flex;align-items:center;justify-content:space-between;padding:11px 14px;background:var(--bg);border:1px solid var(--border);border-radius:9px;margin-bottom:7px;transition:border-color .2s}
     .adm-u:hover{border-color:rgba(0,255,136,.3)}
-    .del-btn{background:none;border:none;color:var(--danger);cursor:pointer;opacity:.5;transition:opacity .2s;font-size:13px;padding:4px}
-    .del-btn:hover{opacity:1}
+    .del-btn,.foto-btn{background:none;border:none;cursor:pointer;opacity:.5;transition:opacity .2s;font-size:13px;padding:4px}
+    .del-btn{color:var(--danger)}.del-btn:hover{opacity:1}
+    .foto-btn{color:var(--info)}.foto-btn:hover{opacity:1}
     .empty-st{text-align:center;padding:40px 16px;color:var(--muted)}
     .empty-st i{font-size:40px;margin-bottom:14px;opacity:.3}
     .empty-st p{font-size:13px;line-height:1.6}
@@ -105,6 +117,7 @@
     .status-banner code{background:rgba(255,255,255,.06);padding:1px 5px;border-radius:4px;font-family:'JetBrains Mono',monospace;font-size:10px;white-space:pre-wrap}
     .retry-btn{margin-top:8px;padding:6px 14px;background:var(--danger);color:#fff;border:none;border-radius:6px;font-family:'Space Grotesk',sans-serif;font-size:11px;font-weight:600;cursor:pointer;transition:opacity .2s}
     .retry-btn:hover{opacity:.85}
+    .sidebar-avatar{width:30px;height:30px;border-radius:7px;object-fit:cover;flex-shrink:0}
     @media(max-width:768px){.app-layout{grid-template-columns:1fr;grid-template-rows:56px 1fr 190px}.sidebar{order:3;border-right:none;border-top:1px solid var(--border)}.adm-pnl{width:100%;right:-100%}.login-card{margin:16px;padding:30px 22px}.map-ov{flex-direction:column;bottom:10px;left:10px}.map-bg{font-size:11px;padding:6px 10px}}
     @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}}
   </style>
@@ -112,6 +125,8 @@
 <body>
 
   <div class="toast-c" id="toastBox"></div>
+  <!-- Input de foto oculto, reutilizable -->
+  <input type="file" id="fotoInput" accept="image/*" style="display:none">
 
   <!-- LOGIN -->
   <div class="login-screen" id="loginScreen">
@@ -122,7 +137,7 @@
           <i class="fas fa-route" style="font-size:26px;color:var(--accent)"></i>
         </div>
         <h1 style="font-size:24px;font-weight:700;letter-spacing:-.4px">Riders Tracker PRO</h1>
-        <p style="color:var(--muted);font-size:13px;margin-top:5px">Tiempo real con Firestore</p>
+        <p style="color:var(--muted);font-size:13px;margin-top:5px">Tiempo real con Firestore + Fotos</p>
       </div>
       <form id="loginForm">
         <div style="margin-bottom:14px">
@@ -139,7 +154,7 @@
         <div class="err-msg" id="loginErr"><i class="fas fa-exclamation-circle"></i><span>Credenciales incorrectas</span></div>
         <div style="margin-top:22px"><button type="submit" class="btn-p"><i class="fas fa-sign-in-alt" style="margin-right:7px"></i>Ingresar</button></div>
       </form>
-      <p style="text-align:center;color:var(--muted);font-size:11px;margin-top:22px"><i class="fas fa-shield-alt" style="margin-right:4px"></i>Conexion segura via Firestore</p>
+      <p style="text-align:center;color:var(--muted);font-size:11px;margin-top:22px"><i class="fas fa-shield-alt" style="margin-right:4px"></i>Conexion segura via Firebase</p>
     </div>
   </div>
 
@@ -193,6 +208,7 @@
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
         <h3 style="font-size:13px;font-weight:600">Riders en mapa</h3>
         <div style="display:flex;gap:6px">
+          <button id="subirFotoBtn" style="background:none;border:none;color:var(--info);cursor:pointer;font-size:11px;font-family:'Space Grotesk',sans-serif" title="Subir mi foto de perfil"><i class="fas fa-camera" style="margin-right:3px"></i>Mi foto</button>
           <button id="centerMeBtn" style="background:none;border:none;color:var(--accent);cursor:pointer;font-size:11px;font-family:'Space Grotesk',sans-serif"><i class="fas fa-crosshairs" style="margin-right:3px"></i>Mi ubicacion</button>
           <button id="limpiarRutaBtn" class="btn-sm" title="Limpiar mi ruta"><i class="fas fa-eraser"></i></button>
         </div>
@@ -204,6 +220,12 @@
 
     <main class="map-container">
       <div id="map"></div>
+      <!-- Botones de estilo de mapa -->
+      <div class="map-layers" id="mapLayers">
+        <button class="layer-btn active" data-layer="dark" title="Mapa oscuro"><i class="fas fa-moon"></i></button>
+        <button class="layer-btn" data-layer="satellite" title="Satelite"><i class="fas fa-satellite"></i></button>
+        <button class="layer-btn" data-layer="light" title="Mapa claro"><i class="fas fa-sun"></i></button>
+      </div>
       <div class="map-ov">
         <div class="map-bg"><i class="fas fa-satellite-dish" style="color:var(--accent)"></i><span id="gpsTxt">GPS: Buscando...</span></div>
         <div class="map-bg"><i class="fas fa-map-marker-alt" style="color:var(--info)"></i><span id="coordTxt">--, --</span></div>
@@ -216,7 +238,7 @@
   <div class="adm-ov" id="admOv"></div>
   <aside class="adm-pnl" id="admPnl" role="dialog" aria-label="Panel de administracion">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:26px">
-      <div><h2 style="font-size:19px;font-weight:700">Panel Admin</h2><p style="font-size:12px;color:var(--muted);margin-top:2px">Gestion de usuarios</p></div>
+      <div><h2 style="font-size:19px;font-weight:700">Panel Admin</h2><p style="font-size:12px;color:var(--muted);margin-top:2px">Gestion de usuarios y fotos</p></div>
       <button id="closeAdmBtn" style="width:34px;height:34px;background:var(--bg);border:1px solid var(--border);border-radius:9px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--fg)" aria-label="Cerrar"><i class="fas fa-times"></i></button>
     </div>
     <div style="background:var(--bg);border:1px solid var(--border);border-radius:13px;padding:18px;margin-bottom:22px">
@@ -228,736 +250,436 @@
     </div>
     <div>
       <h3 style="font-size:13px;font-weight:600;margin-bottom:12px"><i class="fas fa-users" style="color:var(--info);margin-right:7px"></i>Usuarios registrados</h3>
+      <p style="font-size:10px;color:var(--muted);margin-bottom:10px"><i class="fas fa-camera" style="margin-right:3px"></i>Clic en la camara para subir foto de perfil</p>
       <div id="admList"></div>
     </div>
   </aside>
 
   <!-- =============================================
-       SCRIPT REGULAR — Se ejecuta SINCRONICAMENTE
-       despues de que los scripts de Firebase se
-       carguen. No hay imports, no hay await,
-       no hay nada que pueda bloquear el login.
+       SCRIPT REGULAR — 100% sincronico, no bloquea
   ============================================= -->
   <script>
     /* ==========================================================
-       1. SEED ADMIN — Lo primero que se ejecuta.
-          Crea el usuario jcriollo/clavito01 en localStorage
-          si no existe. Esto es 100% sincronico.
+       1. SEED ADMIN
     ========================================================== */
     (function seedAdmin() {
       try {
         var raw = localStorage.getItem("rt_users");
-        if (!raw) {
-          localStorage.setItem("rt_users", JSON.stringify([
-            { nombre: "Juan Criollo", usuario: "jcriollo", password: "clavito01", role: "admin", created: Date.now() }
-          ]));
-          return;
-        }
+        if (!raw) { localStorage.setItem("rt_users", JSON.stringify([{nombre:"Jonathan Criollo",usuario:"jcriollo",password:"clavito01",role:"admin",created:Date.now()}])); return; }
         var datos = JSON.parse(raw);
-        /* Migrar formato viejo (objeto) a formato nuevo (array) */
         if (datos !== null && typeof datos === "object" && !Array.isArray(datos)) {
-          var migrado = [];
-          var claves = Object.keys(datos);
-          for (var i = 0; i < claves.length; i++) {
-            var k = claves[i], v = datos[k];
-            migrado.push({
-              nombre: (v.name || v.nombre || k),
-              usuario: k,
-              password: (v.password || ""),
-              role: (v.role || "user"),
-              created: (v.created || Date.now())
-            });
-          }
-          localStorage.setItem("rt_users", JSON.stringify(migrado));
-          return;
+          var m = [], claves = Object.keys(datos);
+          for (var i = 0; i < claves.length; i++) { var k = claves[i], v = datos[k]; m.push({nombre:(v.name||v.nombre||k),usuario:k,password:(v.password||""),role:(v.role||"user"),created:(v.created||Date.now())}); }
+          localStorage.setItem("rt_users", JSON.stringify(m)); return;
         }
-        /* Si el array esta vacio, volver a crear el admin */
-        if (Array.isArray(datos) && datos.length === 0) {
-          localStorage.setItem("rt_users", JSON.stringify([
-            { nombre: "Juan Criollo", usuario: "jcriollo", password: "clavito01", role: "admin", created: Date.now() }
-          ]));
-        }
-      } catch (e) {
-        localStorage.setItem("rt_users", JSON.stringify([
-          { nombre: "Juan Criollo", usuario: "jcriollo", password: "clavito01", role: "admin", created: Date.now() }
-        ]));
-      }
+        if (Array.isArray(datos) && datos.length === 0) { localStorage.setItem("rt_users", JSON.stringify([{nombre:"Juan Criollo",usuario:"jcriollo",password:"clavito01",role:"admin",created:Date.now()}])); }
+      } catch (e) { localStorage.setItem("rt_users", JSON.stringify([{nombre:"Jonathan Criollo",usuario:"jcriollo",password:"clavito01",role:"admin",created:Date.now()}])); }
     })();
 
-    /* Leer/guardar usuarios */
-    function getUsuarios() {
-      try { var d = JSON.parse(localStorage.getItem("rt_users")); if (Array.isArray(d)) return d; } catch (e) {}
-      /* Fallback si algo salio mal */
-      localStorage.setItem("rt_users", JSON.stringify([
-        { nombre: "Juan Criollo", usuario: "jcriollo", password: "clavito01", role: "admin", created: Date.now() }
-      ]));
-      return JSON.parse(localStorage.getItem("rt_users"));
-    }
+    function getUsuarios() { try{var d=JSON.parse(localStorage.getItem("rt_users"));if(Array.isArray(d))return d;}catch(e){} localStorage.setItem("rt_users",JSON.stringify([{nombre:"Juan Criollo",usuario:"jcriollo",password:"clavito01",role:"admin",created:Date.now()}])); return JSON.parse(localStorage.getItem("rt_users")); }
     function setUsuarios(u) { localStorage.setItem("rt_users", JSON.stringify(u)); }
-    function getSession() { try { return JSON.parse(localStorage.getItem("rt_session")); } catch (e) { return null; } }
+    function getSession() { try{return JSON.parse(localStorage.getItem("rt_session"));}catch(e){return null;} }
     function setSession(u) { localStorage.setItem("rt_session", JSON.stringify(u)); }
     function clearSession() { localStorage.removeItem("rt_session"); }
 
     /* ==========================================================
-       2. FIREBASE INIT — Sincronico con SDK Compat
-          firebase.initializeApp y firebase.firestore()
-          son sincronos, no bloquean nada.
+       2. FIREBASE INIT — app + firestore + storage
     ========================================================== */
-    var db = null;
-    var fbInitOk = false;
-
+    var db = null, storage = null, fbInitOk = false;
     try {
       firebase.initializeApp({
-        apiKey: "AIzaSyAov1tlSvMc8VNfwKbYLDgNftDLUK390Tw",
-        authDomain: "mapa-c26d7.firebaseapp.com",
-        projectId: "mapa-c26d7",
-        storageBucket: "mapa-c26d7.appspot.com",
-        messagingSenderId: "731287849216",
-        appId: "1:731287849216:web:b24c8cbc0b9aa609a04be5"
+        apiKey:"AIzaSyAov1tlSvMc8VNfwKbYLDgNftDLUK390Tw",
+        authDomain:"mapa-c26d7.firebaseapp.com",
+        projectId:"mapa-c26d7",
+        storageBucket:"mapa-c26d7.appspot.com",
+        messagingSenderId:"731287849216",
+        appId:"1:731287849216:web:b24c8cbc0b9aa609a04be5"
       });
       db = firebase.firestore();
+      storage = firebase.storage();
       fbInitOk = true;
-
-      /* Persistencia offline — sin await, no bloquea */
-      db.enablePersistence({ synchronizeTabs: true }).catch(function (err) {
-        if (err.code === "failed-precondition") {
-          console.warn("Persistencia: multiples pestanas.");
-        } else if (err.code === "unimplemented") {
-          console.warn("Persistencia: navegador no soporta IndexedDB.");
-        }
+      db.enablePersistence({synchronizeTabs:true}).catch(function(e){
+        if(e.code==="failed-precondition")console.warn("Persistencia: multiples pestanas.");
+        else if(e.code==="unimplemented")console.warn("Persistencia: navegador no soporta IndexedDB.");
       });
-    } catch (e) {
-      console.error("Error init Firebase:", e);
-      fbInitOk = false;
-    }
+    } catch(e) { console.error("Error Firebase:",e); fbInitOk=false; }
 
     /* ==========================================================
        3. TOAST
     ========================================================== */
-    function toast(msg, type, duration) {
-      type = type || "info";
-      duration = duration || 4000;
-      var c = document.getElementById("toastBox");
-      var t = document.createElement("div");
-      t.className = "toast " + type;
-      var icons = { success: "fa-check-circle", error: "fa-times-circle", warning: "fa-exclamation-triangle", info: "fa-info-circle" };
-      var colors = { success: "var(--accent)", error: "var(--danger)", warning: "var(--warning)", info: "var(--info)" };
-      t.innerHTML = '<i class="fas ' + icons[type] + '" style="color:' + colors[type] + ";font-size:16px;flex-shrink:0\"></i><span style=\"font-size:13px;line-height:1.4\">" + msg + "</span>";
-      c.appendChild(t);
-      setTimeout(function () { t.classList.add("out"); setTimeout(function () { if (t.parentNode) t.remove(); }, 300); }, duration);
-    }
+    function toast(msg,type,duration){type=type||"info";duration=duration||4000;var c=document.getElementById("toastBox"),t=document.createElement("div");t.className="toast "+type;var icons={success:"fa-check-circle",error:"fa-times-circle",warning:"fa-exclamation-triangle",info:"fa-info-circle"},colors={success:"var(--accent)",error:"var(--danger)",warning:"var(--warning)",info:"var(--info)"};t.innerHTML='<i class="fas '+icons[type]+'" style="color:'+colors[type]+';font-size:16px;flex-shrink:0"></i><span style="font-size:13px;line-height:1.4">'+msg+"</span>";c.appendChild(t);setTimeout(function(){t.classList.add("out");setTimeout(function(){if(t.parentNode)t.remove();},300);},duration);}
 
     /* ==========================================================
        4. PALETA
     ========================================================== */
-    var PALETA = ["#00ff88", "#00e5ff", "#ff6b35", "#ffe600", "#ff3b8b", "#a78bfa", "#34d399", "#f97316", "#22d3ee", "#f43f5e"];
-    function colorRider(id) { var h = 0; for (var i = 0; i < id.length; i++) h = id.charCodeAt(i) + ((h << 5) - h); return PALETA[Math.abs(h) % PALETA.length]; }
+    var PALETA=["#00ff88","#00e5ff","#ff6b35","#ffe600","#ff3b8b","#a78bfa","#34d399","#f97316","#22d3ee","#f43f5e"];
+    function colorRider(id){var h=0;for(var i=0;i<id.length;i++)h=id.charCodeAt(i)+((h<<5)-h);return PALETA[Math.abs(h)%PALETA.length];}
 
     /* ==========================================================
        5. ESTADO GLOBAL
     ========================================================== */
-    var map = null, markers = {}, rutas = {}, watchId = null, clockInterval = null, gpsTimeout = null;
-    var firestoreUnsubscribe = null, startTime = Date.now(), totalDist = 0, lastGPSPos = null;
-    var mapCentered = false, miRuta = [], lastRutaWrite = 0, session = null;
-    var firebaseDataReceived = false, renderPending = false, rutaInitDone = false;
-    var lastServerData = 0, fbState = "init", fbRetryCount = 0, fbRetryTimer = null, connCheckInterval = null;
+    var map=null,markers={},rutas={},markerFotos={},tileLayers={},activeLayer="dark";
+    var watchId=null,clockInterval=null,gpsTimeout=null;
+    var firestoreUnsubscribe=null,startTime=Date.now(),totalDist=0,lastGPSPos=null;
+    var mapCentered=false,miRuta=[],lastRutaWrite=0,session=null;
+    var firebaseDataReceived=false,renderPending=false,rutaInitDone=false;
+    var lastServerData=0,fbState="init",fbRetryCount=0,fbRetryTimer=null,connCheckInterval=null;
+    var fotoTargetUser=null;
 
     /* ==========================================================
        6. ESTADO FIREBASE UI
     ========================================================== */
-    function actualizarUI() {
-      var dot = document.getElementById("fbDot");
-      var txt = document.getElementById("fbStatus");
-      var dbTxt = document.getElementById("dbModeTxt");
-      var bErr = document.getElementById("bannerError");
-      var bWarn = document.getElementById("bannerWarn");
-      if (!dot || !txt) return;
-      if (bErr) bErr.classList.remove("show");
-      if (bWarn) bWarn.classList.remove("show");
-
-      switch (fbState) {
-        case "init":
-          dot.className = "fb-dot err"; txt.textContent = "Iniciando..."; if (dbTxt) dbTxt.textContent = "--"; break;
-        case "checking":
-          dot.className = "fb-dot cache"; txt.textContent = "Verificando..."; if (dbTxt) dbTxt.textContent = "Verificando"; break;
-        case "connected":
-          dot.className = "fb-dot"; txt.textContent = "Firestore: EN VIVO"; if (dbTxt) dbTxt.textContent = "LIVE"; break;
-        case "cache":
-          dot.className = "fb-dot cache"; txt.textContent = "Firestore: Cache"; if (dbTxt) dbTxt.textContent = "CACHE";
-          if (bWarn) { bWarn.classList.add("show"); document.getElementById("bannerWarnTxt").textContent = "Sin conexion al servidor. Datos en cache local."; }
-          break;
-        case "denied":
-          dot.className = "fb-dot err"; txt.textContent = "Firestore: Bloqueado"; if (dbTxt) dbTxt.textContent = "ERROR";
-          if (bErr) { bErr.classList.add("show"); document.getElementById("bannerErrorTxt").innerHTML = "<strong>Permiso denegado.</strong> Ve a Firebase Console &gt; <strong>Firestore Database</strong> &gt; <strong>Reglas</strong> y pega:<br><code>rules_version = '2';\nservice cloud.firestore {\n  match /databases/{db}/documents {\n    match /{path=**} {\n      allow read, write: if true;\n    }\n  }\n}</code>"; }
-          break;
-        case "notfound":
-          dot.className = "fb-dot err"; txt.textContent = "Firestore: No creada"; if (dbTxt) dbTxt.textContent = "ERROR";
-          if (bErr) { bErr.classList.add("show"); document.getElementById("bannerErrorTxt").innerHTML = "<strong>Firestore no existe.</strong><br>1. Ve a <a href=\"https://console.firebase.google.com/project/mapa-c26d7/firestore\" target=\"_blank\" style=\"color:var(--info);text-decoration:underline\">Firebase Console &gt; Firestore</a><br>2. Clic en <strong>Crear base de datos</strong><br>3. Elige <strong>Modo de prueba</strong>"; }
-          break;
-        case "error":
-          dot.className = "fb-dot err"; txt.textContent = "Firebase: Error"; if (dbTxt) dbTxt.textContent = "ERROR"; break;
+    function actualizarUI(){
+      var dot=document.getElementById("fbDot"),txt=document.getElementById("fbStatus"),dbTxt=document.getElementById("dbModeTxt"),bErr=document.getElementById("bannerError"),bWarn=document.getElementById("bannerWarn");
+      if(!dot||!txt)return;if(bErr)bErr.classList.remove("show");if(bWarn)bWarn.classList.remove("show");
+      switch(fbState){
+        case"init":dot.className="fb-dot err";txt.textContent="Iniciando...";if(dbTxt)dbTxt.textContent="--";break;
+        case"checking":dot.className="fb-dot cache";txt.textContent="Verificando...";if(dbTxt)dbTxt.textContent="Verificando";break;
+        case"connected":dot.className="fb-dot";txt.textContent="Firestore: EN VIVO";if(dbTxt)dbTxt.textContent="LIVE";break;
+        case"cache":dot.className="fb-dot cache";txt.textContent="Firestore: Cache";if(dbTxt)dbTxt.textContent="CACHE";
+          if(bWarn){bWarn.classList.add("show");document.getElementById("bannerWarnTxt").textContent="Sin conexion al servidor. Datos en cache local.";}break;
+        case"denied":dot.className="fb-dot err";txt.textContent="Firestore: Bloqueado";if(dbTxt)dbTxt.textContent="ERROR";
+          if(bErr){bErr.classList.add("show");document.getElementById("bannerErrorTxt").innerHTML="<strong>Permiso denegado.</strong> Firestore &gt; <strong>Reglas</strong>:<br><code>allow read, write: if true;</code><br><br><strong>Storage &gt; Reglas</strong>:<br><code>allow read, write: if true;</code>";}break;
+        case"notfound":dot.className="fb-dot err";txt.textContent="Firestore: No creada";if(dbTxt)dbTxt.textContent="ERROR";
+          if(bErr){bErr.classList.add("show");document.getElementById("bannerErrorTxt").innerHTML='<strong>Firestore no existe.</strong> Ve a <a href="https://console.firebase.google.com/project/mapa-c26d7/firestore" target="_blank" style="color:var(--info);text-decoration:underline">Firebase Console &gt; Firestore</a> y crea la base de datos en <strong>Modo de prueba</strong>.';}break;
+        case"error":dot.className="fb-dot err";txt.textContent="Firebase: Error";if(dbTxt)dbTxt.textContent="ERROR";break;
       }
     }
-
-    function verificarFirestore() {
-      if (!db) { fbState = "error"; actualizarUI(); return; }
-      fbState = "checking"; actualizarUI();
-      var testId = "_ping_" + Date.now();
-      db.collection("_ping").doc(testId).set({ t: Date.now() }).then(function () {
-        db.collection("_ping").doc(testId).delete().catch(function () { });
-        fbState = "connected"; fbRetryCount = 0; actualizarUI();
-        toast("Firestore conectado — tiempo real activo", "success");
-      }).catch(function (err) {
-        var code = err.code || "";
-        console.error("Verificacion Firestore:", code, err.message);
-        if (code === "permission-denied") fbState = "denied";
-        else if (code === "not-found" || (err.message && err.message.indexOf("not found") !== -1)) fbState = "notfound";
-        else if (code === "unavailable" || code === "deadline-exceeded") { fbState = "cache"; programarReintento(); }
-        else { fbState = "error"; programarReintento(); }
+    function verificarFirestore(){
+      if(!db){fbState="error";actualizarUI();return;}
+      fbState="checking";actualizarUI();
+      var testId="_ping_"+Date.now();
+      db.collection("_ping").doc(testId).set({t:Date.now()}).then(function(){
+        db.collection("_ping").doc(testId).delete().catch(function(){});
+        fbState="connected";fbRetryCount=0;actualizarUI();toast("Firestore conectado — tiempo real activo","success");
+      }).catch(function(err){
+        var code=err.code||"";console.error("Verificacion Firestore:",code);
+        if(code==="permission-denied")fbState="denied";
+        else if(code==="not-found"||(err.message&&err.message.indexOf("not found")!==-1))fbState="notfound";
+        else if(code==="unavailable"||code==="deadline-exceeded"){fbState="cache";programarReintento();}
+        else{fbState="error";programarReintento();}
         actualizarUI();
       });
     }
-
-    function programarReintento() {
-      fbRetryCount++;
-      if (fbRetryCount > 8) { toast("No se pudo conectar tras multiples intentos", "error", 8000); return; }
-      var delay = Math.min(fbRetryCount * 4000, 20000);
-      if (fbRetryTimer) clearTimeout(fbRetryTimer);
-      fbRetryTimer = setTimeout(function () {
-        if (fbState === "cache" || fbState === "error") verificarFirestore();
-      }, delay);
-    }
-
-    function iniciarConnCheck() {
-      if (connCheckInterval) return;
-      connCheckInterval = setInterval(function () {
-        if (fbState === "connected" && lastServerData > 0 && Date.now() - lastServerData > 30000) {
-          fbState = "cache"; actualizarUI();
-        } else if (fbState === "cache" && lastServerData > 0 && Date.now() - lastServerData <= 30000) {
-          fbState = "connected"; fbRetryCount = 0; actualizarUI();
-          toast("Conexion restaurada", "success");
-        }
-      }, 5000);
-    }
-    function detenerConnCheck() { if (connCheckInterval) { clearInterval(connCheckInterval); connCheckInterval = null; } }
+    function programarReintento(){fbRetryCount++;if(fbRetryCount>8){toast("No se pudo conectar","error",8000);return;}var delay=Math.min(fbRetryCount*4000,20000);if(fbRetryTimer)clearTimeout(fbRetryTimer);fbRetryTimer=setTimeout(function(){if(fbState==="cache"||fbState==="error")verificarFirestore();},delay);}
+    function iniciarConnCheck(){if(connCheckInterval)return;connCheckInterval=setInterval(function(){if(fbState==="connected"&&lastServerData>0&&Date.now()-lastServerData>30000){fbState="cache";actualizarUI();}else if(fbState==="cache"&&lastServerData>0&&Date.now()-lastServerData<=30000){fbState="connected";fbRetryCount=0;actualizarUI();toast("Conexion restaurada","success");}},5000);}
+    function detenerConnCheck(){if(connCheckInterval){clearInterval(connCheckInterval);connCheckInterval=null;}}
 
     /* ==========================================================
        7. HAVERSINE
     ========================================================== */
-    function haversine(a, b, c, d) {
-      var R = 6371, e = (c - a) * Math.PI / 180, f = (d - b) * Math.PI / 180;
-      var g = Math.sin(e / 2) * Math.sin(e / 2) + Math.cos(a * Math.PI / 180) * Math.cos(c * Math.PI / 180) * Math.sin(f / 2) * Math.sin(f / 2);
-      return R * 2 * Math.atan2(Math.sqrt(g), Math.sqrt(1 - g));
-    }
+    function haversine(a,b,c,d){var R=6371,e=(c-a)*Math.PI/180,f=(d-b)*Math.PI/180,g=Math.sin(e/2)*Math.sin(e/2)+Math.cos(a*Math.PI/180)*Math.cos(c*Math.PI/180)*Math.sin(f/2)*Math.sin(f/2);return R*2*Math.atan2(Math.sqrt(g),Math.sqrt(1-g));}
 
     /* ==========================================================
        8. INICIAR APP
     ========================================================== */
-    function iniciarApp() {
-      document.getElementById("topUser").textContent = session.nombre;
-      if (session.role === "admin") document.getElementById("adminBtn").style.display = "block";
-      initMap();
-      iniciarGPS();
-      iniciarFirestoreListener();
-      iniciarClock();
-      iniciarConnCheck();
-      setTimeout(verificarFirestore, 2500);
-      toast("Bienvenido, " + session.nombre, "success");
+    function iniciarApp(){
+      document.getElementById("topUser").textContent=session.nombre;
+      if(session.role==="admin")document.getElementById("adminBtn").style.display="block";
+      initMap();iniciarGPS();iniciarFirestoreListener();iniciarClock();iniciarConnCheck();
+      setTimeout(verificarFirestore,2500);toast("Bienvenido, "+session.nombre,"success");
     }
 
     /* ==========================================================
-       9. LOGIN — Comparacion directa con localStorage
+       9. LOGIN
     ========================================================== */
-    function handleLogin(e) {
+    function handleLogin(e){
       e.preventDefault();
-      var usuario = document.getElementById("loginUser").value.trim().toLowerCase();
-      var password = document.getElementById("loginPass").value;
-      var errEl = document.getElementById("loginErr");
-      var usuarios = getUsuarios();
-      var user = null;
-
-      for (var i = 0; i < usuarios.length; i++) {
-        if (usuarios[i].usuario === usuario && usuarios[i].password === password) {
-          user = usuarios[i];
-          break;
-        }
-      }
-
-      if (user) {
-        errEl.classList.remove("show");
-        session = user;
-        setSession(user);
-        var ls = document.getElementById("loginScreen");
-        ls.style.opacity = "0";
-        setTimeout(function () {
-          ls.style.display = "none";
-          document.getElementById("appLayout").classList.add("active");
-          iniciarApp();
-        }, 450);
-      } else {
-        errEl.classList.add("show");
-        var card = document.getElementById("loginCard");
-        card.style.animation = "shake .45s";
-        setTimeout(function () { card.style.animation = ""; }, 500);
-      }
+      var usuario=document.getElementById("loginUser").value.trim().toLowerCase(),password=document.getElementById("loginPass").value,errEl=document.getElementById("loginErr"),usuarios=getUsuarios(),user=null;
+      for(var i=0;i<usuarios.length;i++){if(usuarios[i].usuario===usuario&&usuarios[i].password===password){user=usuarios[i];break;}}
+      if(user){errEl.classList.remove("show");session=user;setSession(user);var ls=document.getElementById("loginScreen");ls.style.opacity="0";setTimeout(function(){ls.style.display="none";document.getElementById("appLayout").classList.add("active");iniciarApp();},450);}
+      else{errEl.classList.add("show");var card=document.getElementById("loginCard");card.style.animation="shake .45s";setTimeout(function(){card.style.animation="";},500);}
     }
-
-    function handleLogout() {
-      if (session && db) { db.collection("riders").doc(session.usuario).delete().catch(function () { }); }
-      clearSession();
-      detenerTodo();
-      document.getElementById("appLayout").classList.remove("active");
-      var ls = document.getElementById("loginScreen");
-      ls.style.display = "flex"; ls.style.opacity = "1";
-      document.getElementById("loginPass").value = "";
-      document.getElementById("loginUser").value = "";
-      document.getElementById("adminBtn").style.display = "none";
-      firebaseDataReceived = false; lastServerData = 0; fbState = "init"; fbRetryCount = 0;
-      toast("Sesion cerrada", "info");
-      setTimeout(function () { document.getElementById("loginUser").focus(); }, 100);
+    function handleLogout(){
+      if(session&&db)db.collection("riders").doc(session.usuario).delete().catch(function(){});
+      clearSession();detenerTodo();document.getElementById("appLayout").classList.remove("active");
+      var ls=document.getElementById("loginScreen");ls.style.display="flex";ls.style.opacity="1";
+      document.getElementById("loginPass").value="";document.getElementById("loginUser").value="";
+      document.getElementById("adminBtn").style.display="none";
+      firebaseDataReceived=false;lastServerData=0;fbState="init";fbRetryCount=0;
+      toast("Sesion cerrada","info");setTimeout(function(){document.getElementById("loginUser").focus();},100);
     }
-
-    function detenerTodo() {
-      if (watchId) { navigator.geolocation.clearWatch(watchId); watchId = null; }
-      if (clockInterval) { clearInterval(clockInterval); clockInterval = null; }
-      if (gpsTimeout) { clearTimeout(gpsTimeout); gpsTimeout = null; }
-      detenerConnCheck();
-      if (fbRetryTimer) { clearTimeout(fbRetryTimer); fbRetryTimer = null; }
-      if (firestoreUnsubscribe) { firestoreUnsubscribe(); firestoreUnsubscribe = null; }
-      if (map) {
-        for (var id in markers) { if (markers[id]) map.removeLayer(markers[id]); }
-        for (var id2 in rutas) { if (rutas[id2]) map.removeLayer(rutas[id2]); }
-      }
-      markers = {}; rutas = {}; map = null; mapCentered = false;
-      totalDist = 0; lastGPSPos = null; miRuta = []; lastRutaWrite = 0; session = null; rutaInitDone = false;
+    function detenerTodo(){
+      if(watchId){navigator.geolocation.clearWatch(watchId);watchId=null;}
+      if(clockInterval){clearInterval(clockInterval);clockInterval=null;}
+      if(gpsTimeout){clearTimeout(gpsTimeout);gpsTimeout=null;}
+      detenerConnCheck();if(fbRetryTimer){clearTimeout(fbRetryTimer);fbRetryTimer=null;}
+      if(firestoreUnsubscribe){firestoreUnsubscribe();firestoreUnsubscribe=null;}
+      if(map){for(var id in markers){if(markers[id])map.removeLayer(markers[id]);}for(var id2 in rutas){if(rutas[id2])map.removeLayer(rutas[id2]);}}
+      markers={};rutas={};markerFotos={};map=null;mapCentered=false;
+      totalDist=0;lastGPSPos=null;miRuta=[];lastRutaWrite=0;session=null;rutaInitDone=false;
     }
 
     /* ==========================================================
        10. AUTO-LOGIN
     ========================================================== */
-    (function autoLogin() {
-      var s = getSession();
-      if (s) {
-        var usuarios = getUsuarios();
-        var valido = false;
-        for (var i = 0; i < usuarios.length; i++) {
-          if (usuarios[i].usuario === s.usuario) { valido = true; break; }
-        }
-        if (valido) {
-          session = s;
-          document.getElementById("loginScreen").style.display = "none";
-          document.getElementById("appLayout").classList.add("active");
-          iniciarApp();
-          return;
-        } else {
-          clearSession();
-        }
-      }
+    (function autoLogin(){
+      var s=getSession();if(s){var u=getUsuarios(),v=false;for(var i=0;i<u.length;i++){if(u[i].usuario===s.usuario){v=true;break;}}
+      if(v){session=s;document.getElementById("loginScreen").style.display="none";document.getElementById("appLayout").classList.add("active");iniciarApp();return;}else clearSession();}
       document.getElementById("loginUser").focus();
     })();
 
     /* ==========================================================
-       11. EVENT LISTENERS — Se registran INMEDIATAMENTE.
-           Nada puede bloquear esto porque no hay imports ni await.
+       11. EVENT LISTENERS
     ========================================================== */
-    document.getElementById("loginForm").addEventListener("submit", handleLogin);
+    document.getElementById("loginForm").addEventListener("submit",handleLogin);
+    document.getElementById("togglePassBtn").addEventListener("click",function(){var i=document.getElementById("loginPass"),c=document.getElementById("passIcon");if(i.type==="password"){i.type="text";c.className="fas fa-eye-slash";}else{i.type="password";c.className="fas fa-eye";}});
+    document.getElementById("loginUser").addEventListener("keydown",function(e){if(e.key==="Enter")document.getElementById("loginPass").focus();});
+    document.getElementById("logoutBtn").addEventListener("click",handleLogout);
+    document.getElementById("adminBtn").addEventListener("click",toggleAdmin);
+    document.getElementById("adminBtnInner").addEventListener("mouseover",function(){this.style.background="rgba(0,255,136,.25)";});
+    document.getElementById("adminBtnInner").addEventListener("mouseout",function(){this.style.background="var(--accent-dim)";});
+    document.getElementById("admOv").addEventListener("click",toggleAdmin);
+    document.getElementById("closeAdmBtn").addEventListener("click",toggleAdmin);
+    document.getElementById("centerMeBtn").addEventListener("click",centerMe);
+    document.getElementById("limpiarRutaBtn").addEventListener("click",limpiarRuta);
+    document.getElementById("retryBtn").addEventListener("click",function(){fbRetryCount=0;verificarFirestore();});
+    document.getElementById("crearUserBtn").addEventListener("click",crearUsuario);
 
-    document.getElementById("togglePassBtn").addEventListener("click", function () {
-      var inp = document.getElementById("loginPass");
-      var ico = document.getElementById("passIcon");
-      if (inp.type === "password") { inp.type = "text"; ico.className = "fas fa-eye-slash"; }
-      else { inp.type = "password"; ico.className = "fas fa-eye"; }
+    /* Boton subir foto del usuario logueado */
+    document.getElementById("subirFotoBtn").addEventListener("click",function(){if(session)abrirFotoInput(session.usuario);});
+
+    /* Input de foto — reutilizable para cualquier usuario */
+    document.getElementById("fotoInput").addEventListener("change",function(){
+      var file=this.files[0];
+      if(!file||!fotoTargetUser)return;
+      if(!file.type.startsWith("image/")){toast("Solo se permiten imagenes","error");this.value="";return;}
+      if(file.size>2*1024*1024){toast("Imagen maximo 2MB","error");this.value="";return;}
+      subirFotoRider(file,fotoTargetUser);
+      this.value="";
     });
 
-    document.getElementById("loginUser").addEventListener("keydown", function (e) {
-      if (e.key === "Enter") document.getElementById("loginPass").focus();
-    });
-
-    document.getElementById("logoutBtn").addEventListener("click", handleLogout);
-
-    document.getElementById("adminBtn").addEventListener("click", toggleAdmin);
-    document.getElementById("adminBtnInner").addEventListener("mouseover", function () { this.style.background = "rgba(0,255,136,.25)"; });
-    document.getElementById("adminBtnInner").addEventListener("mouseout", function () { this.style.background = "var(--accent-dim)"; });
-    document.getElementById("admOv").addEventListener("click", toggleAdmin);
-    document.getElementById("closeAdmBtn").addEventListener("click", toggleAdmin);
-    document.getElementById("centerMeBtn").addEventListener("click", centerMe);
-    document.getElementById("limpiarRutaBtn").addEventListener("click", limpiarRuta);
-    document.getElementById("retryBtn").addEventListener("click", function () { fbRetryCount = 0; verificarFirestore(); });
-    document.getElementById("crearUserBtn").addEventListener("click", crearUsuario);
-
-    /* ==========================================================
-       12. MAPA
-    ========================================================== */
-    function initMap() {
-      map = L.map("map", { center: [-2.17, -79.92], zoom: 13, zoomControl: true });
-      L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',
-        subdomains: "abcd", maxZoom: 20
-      }).addTo(map);
-      setTimeout(function () { map.invalidateSize(); }, 250);
-      window.addEventListener("resize", function () { if (map) map.invalidateSize(); });
-    }
-
-    /* ==========================================================
-       13. GPS → Firestore con setDoc + merge
-    ========================================================== */
-    function iniciarGPS() {
-      if (!navigator.geolocation) {
-        toast("Navegador no soporta geolocalizacion", "error");
-        document.getElementById("gpsTxt").textContent = "GPS: No disponible";
-        return;
-      }
-      document.getElementById("gpsTxt").textContent = "GPS: Buscando...";
-      gpsTimeout = setTimeout(function () {
-        document.getElementById("gpsTxt").textContent = "GPS: Sin senal";
-        toast("Sin senal GPS. Verifica permisos.", "warning");
-      }, 15000);
-
-      watchId = navigator.geolocation.watchPosition(
-        function (pos) {
-          if (gpsTimeout) { clearTimeout(gpsTimeout); gpsTimeout = null; }
-          var lat = pos.coords.latitude, lng = pos.coords.longitude;
-          var acc = pos.coords.accuracy, spd = pos.coords.speed;
-
-          if (lastGPSPos) { var d = haversine(lastGPSPos.lat, lastGPSPos.lng, lat, lng); if (d > 0.005) totalDist += d; }
-          lastGPSPos = { lat: lat, lng: lng };
-          var skmh = (spd !== null && spd >= 0) ? Math.round(spd * 3.6) : "0";
-          document.getElementById("sSpeed").textContent = skmh;
-          document.getElementById("sDist").textContent = totalDist.toFixed(2);
-          document.getElementById("coordTxt").textContent = lat.toFixed(5) + ", " + lng.toFixed(5);
-
-          if (acc < 10) document.getElementById("gpsTxt").textContent = "GPS: Excelente (" + Math.round(acc) + "m)";
-          else if (acc < 30) document.getElementById("gpsTxt").textContent = "GPS: Bueno (" + Math.round(acc) + "m)";
-          else if (acc < 100) document.getElementById("gpsTxt").textContent = "GPS: Regular (" + Math.round(acc) + "m)";
-          else document.getElementById("gpsTxt").textContent = "GPS: Bajo (" + Math.round(acc) + "m)";
-
-          if (!mapCentered) { map.setView([lat, lng], 16); mapCentered = true; }
-
-          miRuta.push({ lat: lat, lng: lng, time: Date.now() });
-          if (miRuta.length > 500) miRuta = miRuta.slice(-500);
-
-          /* Cargar ruta previa la primera vez */
-          if (!rutaInitDone && db) {
-            rutaInitDone = true;
-            db.collection("riders").doc(session.usuario).get().then(function (snap) {
-              if (snap.exists) {
-                var data = snap.data();
-                if (data.ruta && Array.isArray(data.ruta) && data.ruta.length > 0) {
-                  var prev = data.ruta.slice(-300);
-                  miRuta = prev.concat(miRuta.slice(1));
-                  if (miRuta.length > 500) miRuta = miRuta.slice(-500);
-                }
-              }
-            }).catch(function () { });
-          }
-
-          /* Escribir posicion — merge: no borra la ruta */
-          if (db) {
-            db.collection("riders").doc(session.usuario).set({
-              nombre: session.nombre, lat: lat, lng: lng,
-              speed: (spd !== null && spd >= 0) ? Math.round(spd * 3.6) : 0,
-              timestamp: Date.now()
-            }, { merge: true }).catch(function (err) {
-              if (err.code === "permission-denied" && fbState !== "denied") { fbState = "denied"; actualizarUI(); }
-            });
-
-            /* Escribir ruta cada 10s — merge: no toca lat/lng/speed */
-            var ahora = Date.now();
-            if (ahora - lastRutaWrite >= 10000) {
-              lastRutaWrite = ahora;
-              db.collection("riders").doc(session.usuario).set({ ruta: miRuta.slice(-300) }, { merge: true }).catch(function () { });
-            }
-          }
-
-          /* Fallback local mientras Firestore responde */
-          if (!firebaseDataReceived) renderFallback(lat, lng, spd);
-        },
-        function (err) {
-          if (gpsTimeout) { clearTimeout(gpsTimeout); gpsTimeout = null; }
-          var m = { 1: "Permiso de ubicacion denegado.", 2: "Ubicacion no disponible.", 3: "Timeout GPS." };
-          toast(m[err.code] || "Error GPS", "warning", 6000);
-          document.getElementById("gpsTxt").textContent = "GPS: Sin senal";
-        },
-        { enableHighAccuracy: true, maximumAge: 3000, timeout: 15000 }
-      );
-    }
-
-    function renderFallback(lat, lng, spd) {
-      if (!session) return;
-      var el = document.getElementById("riderList");
-      var s = (spd !== null && spd >= 0) ? Math.round(spd * 3.6) : "--";
-      el.innerHTML = '<div class="rider-card me"><div style="display:flex;align-items:center;gap:9px"><div style="width:30px;height:30px;background:#00ff88;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#0a0e17;flex-shrink:0">' + session.nombre.charAt(0) + '</div><div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:600;display:flex;align-items:center;gap:5px">' + session.nombre + ' <span class="sdot mov"></span></div><div style="font-size:10px;color:var(--muted);font-family:JetBrains Mono,monospace">' + s + ' km/h <span style="color:var(--accent);margin-left:6px">GPS Activo</span></div></div><span style="font-size:9px;padding:2px 7px;background:var(--accent-dim);color:var(--accent);border-radius:5px;font-weight:600;flex-shrink:0">TU</span></div></div><div class="empty-st" style="padding:16px"><i class="fas fa-hourglass-half" style="font-size:20px"></i><p style="font-size:11px">Conectando con Firestore...</p></div>';
-      document.getElementById("sRiders").textContent = "1";
-      if (map) {
-        if (!markers[session.usuario]) {
-          var ic = L.divIcon({ className: "", html: '<div class="cm me">' + session.nombre.charAt(0).toUpperCase() + '</div>', iconSize: [36, 36], iconAnchor: [18, 18] });
-          markers[session.usuario] = L.marker([lat, lng], { icon: ic }).addTo(map);
-          markers[session.usuario].bindTooltip(session.nombre, { permanent: false, direction: "top", offset: [0, -22], className: "ct" });
-        } else { markers[session.usuario].setLatLng([lat, lng]); }
-      }
-    }
-
-    function limpiarRuta() {
-      if (!session) return;
-      miRuta = []; lastGPSPos = null; totalDist = 0;
-      document.getElementById("sDist").textContent = "0.0";
-      if (db) db.collection("riders").doc(session.usuario).set({ ruta: [] }, { merge: true }).catch(function () { });
-      if (rutas[session.usuario] && map) { map.removeLayer(rutas[session.usuario]); delete rutas[session.usuario]; }
-      toast("Ruta limpiada", "info");
-    }
-
-    /* ==========================================================
-       14. FIRESTORE LISTENER — onSnapshot con metadata
-           
-           CLAVE DEL TIEMPO REAL:
-           snapshot.metadata.fromCache === false → del servidor (EN VIVO)
-           snapshot.metadata.fromCache === true  → del cache (OFFLINE)
-           
-           Con enablePersistence, los datos SIEMPRE estan disponibles.
-           Firestore se reconecta SOLO sin codigo extra.
-    ========================================================== */
-    function iniciarFirestoreListener() {
-      if (!db) {
-        fbState = "error"; actualizarUI();
-        document.getElementById("riderList").innerHTML = '<div class="empty-st"><i class="fas fa-exclamation-triangle" style="color:var(--danger)"></i><p>Firebase no disponible.</p></div>';
-        return;
-      }
-
-      /* onSnapshot con includeMetadataChanges para detectar servidor vs cache */
-      firestoreUnsubscribe = db.collection("riders").onSnapshot(
-        { includeMetadataChanges: true },
-        function (snapshot) {
-          /* Deteccion de conexion via metadata */
-          if (!snapshot.metadata.fromCache) {
-            /* Datos vienen del servidor → EN VIVO */
-            lastServerData = Date.now();
-            if (fbState !== "connected") {
-              fbState = "connected"; fbRetryCount = 0; actualizarUI();
-            }
-          } else if (lastServerData === 0) {
-            /* Primer snapshot viene del cache → todavia sin confirmar servidor */
-            if (fbState === "checking" || fbState === "init") { fbState = "cache"; actualizarUI(); }
-          }
-
-          firebaseDataReceived = true;
-
-          /* Extraer riders del snapshot */
-          if (renderPending) return;
-          renderPending = true;
-          requestAnimationFrame(function () {
-            renderPending = false;
-            var riders = {};
-            snapshot.forEach(function (d) { riders[d.id] = d.data(); });
-            renderRiders(riders);
-          });
-        },
-        function (error) {
-          console.error("onSnapshot error:", error.code, error.message);
-          var code = error.code || "";
-          if (code === "permission-denied") fbState = "denied";
-          else if (code === "not-found") fbState = "notfound";
-          else { fbState = "error"; programarReintento(); }
-          actualizarUI();
-          document.getElementById("riderList").innerHTML = '<div class="empty-st"><i class="fas fa-exclamation-triangle" style="color:var(--danger)"></i><p>Error: ' + (error.message || code) + '</p></div>';
-        }
-      );
-    }
-
-    /* ==========================================================
-       15. RENDER RIDERS
-    ========================================================== */
-    function renderRiders(riders) {
-      if (!map) return;
-      var el = document.getElementById("riderList");
-      var ahora = Date.now();
-
-      if (!riders || Object.keys(riders).length === 0) {
-        limpiarViejos({});
-        el.innerHTML = '<div class="empty-st"><i class="fas fa-satellite-dish"></i><p>No hay riders. Abre la app en otro dispositivo.</p></div>';
-        document.getElementById("sRiders").textContent = "0";
-        return;
-      }
-
-      var arr = [], ids = {};
-      for (var id in riders) {
-        var r = riders[id];
-        if (!r || r.lat == null || r.lng == null) continue;
-        ids[id] = true;
-        var esMi = session && id === session.usuario;
-        var edad = r.timestamp ? (ahora - r.timestamp) : 999999;
-        var est = "offline";
-        if (edad < 60000) est = "activo";
-        else if (edad < 300000) est = "inactivo";
-        arr.push({ id: id, data: r, esMi: esMi, est: est, edad: edad, color: esMi ? "#00ff88" : colorRider(id) });
-      }
-
-      arr.sort(function (a, b) {
-        if (a.esMi && !b.esMi) return -1;
-        if (!a.esMi && b.esMi) return 1;
-        var o = { activo: 0, inactivo: 1, offline: 2 };
-        if (o[a.est] !== o[b.est]) return o[a.est] - o[b.est];
-        return (a.data.nombre || a.id).localeCompare(b.data.nombre || b.id);
+    /* Botones de capa del mapa */
+    document.querySelectorAll(".layer-btn").forEach(function(btn){
+      btn.addEventListener("click",function(){
+        var layer=btn.getAttribute("data-layer");
+        if(layer===activeLayer)return;
+        if(map&&tileLayers[activeLayer])map.removeLayer(tileLayers[activeLayer]);
+        if(map&&tileLayers[layer])tileLayers[layer].addTo(map);
+        activeLayer=layer;
+        document.querySelectorAll(".layer-btn").forEach(function(b){b.classList.remove("active");});
+        btn.classList.add("active");
       });
+    });
 
-      var act = 0;
-      for (var i = 0; i < arr.length; i++) if (arr[i].est === "activo") act++;
-      document.getElementById("sRiders").textContent = act;
+    /* ==========================================================
+       12. MAPA — 3 estilos intercambiables
+    ========================================================== */
+    function initMap(){
+      map=L.map("map",{center:[-2.17,-79.92],zoom:13,zoomControl:true});
+      /* Capa oscuro (default) */
+      tileLayers.dark=L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",{
+        attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',subdomains:"abcd",maxZoom:20
+      });
+      /* Capa satelite (ESRI — gratis) */
+      tileLayers.satellite=L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",{
+        attribution:'&copy; Esri',maxZoom:19
+      });
+      /* Capa claro (parecido a Google Maps) */
+      tileLayers.light=L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",{
+        attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',subdomains:"abcd",maxZoom:20
+      });
+      tileLayers.dark.addTo(map);
+      setTimeout(function(){map.invalidateSize();},250);
+      window.addEventListener("resize",function(){if(map)map.invalidateSize();});
+    }
 
-      var html = "";
-      for (var i = 0; i < arr.length; i++) {
-        var rd = arr[i], r = rd.data, rid = rd.id, esMi = rd.esMi, est = rd.est, color = rd.color;
-        var spd = (r.speed != null && r.speed >= 0) ? r.speed.toFixed(0) : "--";
-        var cc = "rider-card" + (esMi ? " me" : "") + (est === "inactivo" ? " inactivo" : "") + (est === "offline" ? " offline" : "");
-        var dc, et, ec;
-        if (esMi && est === "activo") { dc = "sdot mov"; et = "Activo"; ec = "color:var(--accent)"; }
-        else if (est === "activo") { dc = "sdot on"; et = "Activo"; ec = "color:var(--accent)"; }
-        else if (est === "inactivo") { dc = "sdot warn"; et = "Inactivo"; ec = "color:var(--warning)"; }
-        else { dc = "sdot off"; et = "Offline"; ec = "color:var(--muted)"; }
-        var bg = esMi ? '<span style="font-size:9px;padding:2px 7px;background:var(--accent-dim);color:var(--accent);border-radius:5px;font-weight:600;flex-shrink:0">TU</span>' : "";
-        var tt = rd.edad < 60000 ? Math.floor(rd.edad / 1000) + "s" : rd.edad < 3600000 ? Math.floor(rd.edad / 60000) + "m" : Math.floor(rd.edad / 3600000) + "h";
-        var ini = (r.nombre || rid).charAt(0).toUpperCase();
+    /* ==========================================================
+       13. SUBIR FOTO — Firebase Storage + Firestore
+    ========================================================== */
+    function abrirFotoInput(userId){fotoTargetUser=userId;document.getElementById("fotoInput").click();}
 
-        html += '<div class="' + cc + '" data-rider="' + rid + '"><div style="display:flex;align-items:center;gap:9px"><div style="width:30px;height:30px;background:' + color + ';border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#0a0e17;flex-shrink:0">' + ini + '</div><div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:600;display:flex;align-items:center;gap:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + (r.nombre || rid) + ' <span class="' + dc + '"></span></div><div style="font-size:10px;color:var(--muted);font-family:JetBrains Mono,monospace">' + spd + ' km/h &middot; <span style="' + ec + '">' + et + '</span> <span style="opacity:.5">' + tt + '</span></div></div>' + bg + '</div></div>';
+    function subirFotoRider(file,userId){
+      if(!storage){toast("Firebase Storage no disponible","error");return;}
+      toast("Subiendo foto...","info",3000);
+      var storageRef=storage.ref("riders/"+userId);
+      storageRef.put(file).then(function(snapshot){
+        return storageRef.getDownloadURL();
+      }).then(function(url){
+        /* Guardar URL en Firestore con merge (no borra lat/lng/speed/ruta) */
+        return db.collection("riders").doc(userId).set({foto:url},{merge:true});
+      }).then(function(){
+        toast("Foto de perfil actualizada","success");
+      }).catch(function(err){
+        console.error("Error subiendo foto:",err);
+        if(err.code==="storage/unauthorized"){
+          toast("Storage: permiso denegado. Configura las reglas en Firebase Console > Storage.","error",8000);
+        }else{toast("Error: "+(err.message||err.code),"error");}
+      });
+    }
 
-        /* Marcador en mapa */
-        if (markers[rid]) { markers[rid].setLatLng([r.lat, r.lng]); }
-        else {
-          var iconCls = esMi ? "cm me" : "cm other";
-          var icon = L.divIcon({ className: "", html: '<div class="' + iconCls + '"' + (esMi ? "" : ' style="background:' + color + '"') + ">" + ini + "</div>", iconSize: [36, 36], iconAnchor: [18, 18] });
-          markers[rid] = L.marker([r.lat, r.lng], { icon: icon }).addTo(map);
-          markers[rid].bindTooltip(r.nombre || rid, { permanent: false, direction: "top", offset: [0, -22], className: "ct" });
+    /* ==========================================================
+       14. CREAR ICONO DEL MARCADOR — con foto o por defecto
+    ========================================================== */
+    function crearIcono(id,data,esMi,color,foto){
+      if(foto){
+        var cls=esMi?"foto-marcador me":"foto-marcador";
+        return L.divIcon({className:"",html:'<div class="'+cls+'" style="background-image:url('+foto+');border-color:'+color+'"></div>',iconSize:[42,42],iconAnchor:[21,21]});
+      }else{
+        var ini=(data.nombre||id).charAt(0).toUpperCase();
+        var iconCls=esMi?"cm me":"cm other";
+        return L.divIcon({className:"",html:'<div class="'+iconCls+'"'+(esMi?"":" style=\"background:"+color+"\"")+'>'+ini+"</div>",iconSize:[36,36],iconAnchor:[18,18]});
+      }
+    }
+
+    /* ==========================================================
+       15. GPS → Firestore
+    ========================================================== */
+    function iniciarGPS(){
+      if(!navigator.geolocation){toast("Navegador no soporta geolocalizacion","error");document.getElementById("gpsTxt").textContent="GPS: No disponible";return;}
+      document.getElementById("gpsTxt").textContent="GPS: Buscando...";
+      gpsTimeout=setTimeout(function(){document.getElementById("gpsTxt").textContent="GPS: Sin senal";toast("Sin senal GPS","warning");},15000);
+      watchId=navigator.geolocation.watchPosition(function(pos){
+        if(gpsTimeout){clearTimeout(gpsTimeout);gpsTimeout=null;}
+        var lat=pos.coords.latitude,lng=pos.coords.longitude,acc=pos.coords.accuracy,spd=pos.coords.speed;
+        if(lastGPSPos){var d=haversine(lastGPSPos.lat,lastGPSPos.lng,lat,lng);if(d>0.005)totalDist+=d;}
+        lastGPSPos={lat:lat,lng:lng};
+        var skmh=(spd!==null&&spd>=0)?Math.round(spd*3.6):"0";
+        document.getElementById("sSpeed").textContent=skmh;
+        document.getElementById("sDist").textContent=totalDist.toFixed(2);
+        document.getElementById("coordTxt").textContent=lat.toFixed(5)+", "+lng.toFixed(5);
+        if(acc<10)document.getElementById("gpsTxt").textContent="GPS: Excelente ("+Math.round(acc)+"m)";
+        else if(acc<30)document.getElementById("gpsTxt").textContent="GPS: Bueno ("+Math.round(acc)+"m)";
+        else if(acc<100)document.getElementById("gpsTxt").textContent="GPS: Regular ("+Math.round(acc)+"m)";
+        else document.getElementById("gpsTxt").textContent="GPS: Bajo ("+Math.round(acc)+"m)";
+        if(!mapCentered){map.setView([lat,lng],16);mapCentered=true;}
+        miRuta.push({lat:lat,lng:lng,time:Date.now()});if(miRuta.length>500)miRuta=miRuta.slice(-500);
+        if(!rutaInitDone&&db){rutaInitDone=true;db.collection("riders").doc(session.usuario).get().then(function(snap){if(snap.exists){var data=snap.data();if(data.ruta&&Array.isArray(data.ruta)&&data.ruta.length>0){var prev=data.ruta.slice(-300);miRuta=prev.concat(miRuta.slice(1));if(miRuta.length>500)miRuta=miRuta.slice(-500);}}}).catch(function(){});}
+        if(db){
+          db.collection("riders").doc(session.usuario).set({nombre:session.nombre,lat:lat,lng:lng,speed:(spd!==null&&spd>=0)?Math.round(spd*3.6):0,timestamp:Date.now()},{merge:true}).catch(function(err){if(err.code==="permission-denied"&&fbState!=="denied"){fbState="denied";actualizarUI();}});
+          var ahora=Date.now();if(ahora-lastRutaWrite>=10000){lastRutaWrite=ahora;db.collection("riders").doc(session.usuario).set({ruta:miRuta.slice(-300)},{merge:true}).catch(function(){});}
+        }
+        if(!firebaseDataReceived)renderFallback(lat,lng,spd);
+      },function(err){if(gpsTimeout){clearTimeout(gpsTimeout);gpsTimeout=null;}var m={1:"Permiso de ubicacion denegado.",2:"Ubicacion no disponible.",3:"Timeout GPS."};toast(m[err.code]||"Error GPS","warning",6000);document.getElementById("gpsTxt").textContent="GPS: Sin senal";},{enableHighAccuracy:true,maximumAge:3000,timeout:15000});
+    }
+
+    function renderFallback(lat,lng,spd){
+      if(!session)return;var el=document.getElementById("riderList"),s=(spd!==null&&spd>=0)?Math.round(spd*3.6):"--";
+      el.innerHTML='<div class="rider-card me"><div style="display:flex;align-items:center;gap:9px"><div style="width:30px;height:30px;background:#00ff88;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#0a0e17;flex-shrink:0">'+session.nombre.charAt(0)+'</div><div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:600;display:flex;align-items:center;gap:5px">'+session.nombre+' <span class="sdot mov"></span></div><div style="font-size:10px;color:var(--muted);font-family:JetBrains Mono,monospace">'+s+' km/h <span style="color:var(--accent);margin-left:6px">GPS Activo</span></div></div><span style="font-size:9px;padding:2px 7px;background:var(--accent-dim);color:var(--accent);border-radius:5px;font-weight:600;flex-shrink:0">TU</span></div></div><div class="empty-st" style="padding:16px"><i class="fas fa-hourglass-half" style="font-size:20px"></i><p style="font-size:11px">Conectando con Firestore...</p></div>';
+      document.getElementById("sRiders").textContent="1";
+      if(map){if(!markers[session.usuario]){var ic=L.divIcon({className:"",html:'<div class="cm me">'+session.nombre.charAt(0).toUpperCase()+'</div>',iconSize:[36,36],iconAnchor:[18,18]});markers[session.usuario]=L.marker([lat,lng],{icon:ic}).addTo(map);markers[session.usuario].bindTooltip(session.nombre,{permanent:false,direction:"top",offset:[0,-22],className:"ct"});}else{markers[session.usuario].setLatLng([lat,lng]);}}
+    }
+
+    function limpiarRuta(){if(!session)return;miRuta=[];lastGPSPos=null;totalDist=0;document.getElementById("sDist").textContent="0.0";if(db)db.collection("riders").doc(session.usuario).set({ruta:[]},{merge:true}).catch(function(){});if(rutas[session.usuario]&&map){map.removeLayer(rutas[session.usuario]);delete rutas[session.usuario];}toast("Ruta limpiada","info");}
+
+    /* ==========================================================
+       16. FIRESTORE LISTENER — onSnapshot con metadata
+    ========================================================== */
+    function iniciarFirestoreListener(){
+      if(!db){fbState="error";actualizarUI();document.getElementById("riderList").innerHTML='<div class="empty-st"><i class="fas fa-exclamation-triangle" style="color:var(--danger)"></i><p>Firebase no disponible.</p></div>';return;}
+      firestoreUnsubscribe=db.collection("riders").onSnapshot({includeMetadataChanges:true},function(snapshot){
+        if(!snapshot.metadata.fromCache){lastServerData=Date.now();if(fbState!=="connected"){fbState="connected";fbRetryCount=0;actualizarUI();}}
+        else if(lastServerData===0){if(fbState==="checking"||fbState==="init"){fbState="cache";actualizarUI();}}
+        firebaseDataReceived=true;if(renderPending)return;renderPending=true;
+        requestAnimationFrame(function(){renderPending=false;var riders={};snapshot.forEach(function(d){riders[d.id]=d.data();});renderRiders(riders);});
+      },function(error){console.error("onSnapshot error:",error.code);var code=error.code||"";if(code==="permission-denied")fbState="denied";else if(code==="not-found")fbState="notfound";else{fbState="error";programarReintento();}actualizarUI();document.getElementById("riderList").innerHTML='<div class="empty-st"><i class="fas fa-exclamation-triangle" style="color:var(--danger)"></i><p>Error: '+(error.message||code)+"</p></div>";});
+    }
+
+    /* ==========================================================
+       17. RENDER RIDERS — con foto en sidebar y mapa
+    ========================================================== */
+    function renderRiders(riders){
+      if(!map)return;var el=document.getElementById("riderList"),ahora=Date.now();
+      if(!riders||Object.keys(riders).length===0){limpiarViejos({});el.innerHTML='<div class="empty-st"><i class="fas fa-satellite-dish"></i><p>No hay riders.</p></div>';document.getElementById("sRiders").textContent="0";return;}
+      var arr=[],ids={};
+      for(var id in riders){var r=riders[id];if(!r||r.lat==null||r.lng==null)continue;ids[id]=true;var esMi=session&&id===session.usuario;var edad=r.timestamp?(ahora-r.timestamp):999999;var est="offline";if(edad<60000)est="activo";else if(edad<300000)est="inactivo";arr.push({id:id,data:r,esMi:esMi,est:est,edad:edad,color:esMi?"#00ff88":colorRider(id)});}
+      arr.sort(function(a,b){if(a.esMi&&!b.esMi)return -1;if(!a.esMi&&b.esMi)return 1;var o={activo:0,inactivo:1,offline:2};if(o[a.est]!==o[b.est])return o[a.est]-o[b.est];return(a.data.nombre||a.id).localeCompare(b.data.nombre||b.id);});
+      var act=0;for(var i=0;i<arr.length;i++)if(arr[i].est==="activo")act++;document.getElementById("sRiders").textContent=act;
+
+      var html="";
+      for(var i=0;i<arr.length;i++){
+        var rd=arr[i],r=rd.data,rid=rd.id,esMi=rd.esMi,est=rd.est,color=rd.color,foto=r.foto||"";
+        var spd=(r.speed!=null&&r.speed>=0)?r.speed.toFixed(0):"--";
+        var cc="rider-card"+(esMi?" me":"")+(est==="inactivo"?" inactivo":"")+(est==="offline"?" offline":"");
+        var dc,et,ec;if(esMi&&est==="activo"){dc="sdot mov";et="Activo";ec="color:var(--accent)";}else if(est==="activo"){dc="sdot on";et="Activo";ec="color:var(--accent)";}else if(est==="inactivo"){dc="sdot warn";et="Inactivo";ec="color:var(--warning)";}else{dc="sdot off";et="Offline";ec="color:var(--muted)";}
+        var bg=esMi?'<span style="font-size:9px;padding:2px 7px;background:var(--accent-dim);color:var(--accent);border-radius:5px;font-weight:600;flex-shrink:0">TU</span>':"";
+        var tt=rd.edad<60000?Math.floor(rd.edad/1000)+"s":rd.edad<3600000?Math.floor(rd.edad/60000)+"m":Math.floor(rd.edad/3600000)+"h";
+        var ini=(r.nombre||rid).charAt(0).toUpperCase();
+
+        /* Avatar: foto si existe, sino inicial */
+        var avatarHtml;
+        if(foto){
+          avatarHtml='<img src="'+foto+'" class="sidebar-avatar" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\'"><div style="display:none;width:30px;height:30px;background:'+color+';border-radius:7px;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#0a0e17;flex-shrink:0">'+ini+"</div>";
+        }else{
+          avatarHtml='<div style="width:30px;height:30px;background:'+color+';border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#0a0e17;flex-shrink:0">'+ini+"</div>";
+        }
+
+        html+='<div class="'+cc+'" data-rider="'+rid+'"><div style="display:flex;align-items:center;gap:9px">'+avatarHtml+'<div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:600;display:flex;align-items:center;gap:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+(r.nombre||rid)+' <span class="'+dc+'"></span></div><div style="font-size:10px;color:var(--muted);font-family:JetBrains Mono,monospace">'+spd+' km/h &middot; <span style="'+ec+'">'+et+"</span> <span style=\"opacity:.5\">"+tt+"</span></div></div>"+bg+"</div></div>";
+
+        /* Marcador en mapa — actualizar icono solo si la foto cambio */
+        if(markers[rid]){
+          markers[rid].setLatLng([r.lat,r.lng]);
+          if(markerFotos[rid]!==foto){markerFotos[rid]=foto;markers[rid].setIcon(crearIcono(rid,r,esMi,color,foto));}
+        }else{
+          markerFotos[rid]=foto;
+          var icon=crearIcono(rid,r,esMi,color,foto);
+          markers[rid]=L.marker([r.lat,r.lng],{icon:icon}).addTo(map);
+          markers[rid].bindTooltip(r.nombre||rid,{permanent:false,direction:"top",offset:[0,-22],className:"ct"});
         }
 
         /* Ruta polyline */
-        if (r.ruta && Array.isArray(r.ruta) && r.ruta.length > 1) {
-          var coords = [];
-          for (var j = 0; j < r.ruta.length; j++) { if (r.ruta[j].lat != null && r.ruta[j].lng != null) coords.push([r.ruta[j].lat, r.ruta[j].lng]); }
-          if (coords.length > 1) {
-            var op = est === "activo" ? 0.5 : est === "inactivo" ? 0.25 : 0.12;
-            if (rutas[rid]) { rutas[rid].setLatLngs(coords); rutas[rid].setStyle({ opacity: op }); }
-            else { rutas[rid] = L.polyline(coords, { color: color, weight: 3, opacity: op, smoothFactor: 1 }).addTo(map); }
-          }
+        if(r.ruta&&Array.isArray(r.ruta)&&r.ruta.length>1){
+          var coords=[];for(var j=0;j<r.ruta.length;j++){if(r.ruta[j].lat!=null&&r.ruta[j].lng!=null)coords.push([r.ruta[j].lat,r.ruta[j].lng]);}
+          if(coords.length>1){var op=est==="activo"?0.5:est==="inactivo"?0.25:0.12;if(rutas[rid]){rutas[rid].setLatLngs(coords);rutas[rid].setStyle({opacity:op});}else{rutas[rid]=L.polyline(coords,{color:color,weight:3,opacity:op,smoothFactor:1}).addTo(map);}}
         }
       }
 
-      limpiarViejos(ids);
-      el.innerHTML = html;
-
-      /* Delegacion de eventos para focus */
-      var cards = el.querySelectorAll("[data-rider]");
-      for (var c = 0; c < cards.length; c++) {
-        (function (card) {
-          card.addEventListener("click", function () { focusRider(card.getAttribute("data-rider")); });
-        })(cards[c]);
-      }
+      limpiarViejos(ids);el.innerHTML=html;
+      var cards=el.querySelectorAll("[data-rider]");for(var c=0;c<cards.length;c++){(function(card){card.addEventListener("click",function(){focusRider(card.getAttribute("data-rider"));});})(cards[c]);}
     }
 
-    function limpiarViejos(ids) {
-      for (var oldId in markers) {
-        if (!ids[oldId]) {
-          if (markers[oldId] && map) map.removeLayer(markers[oldId]);
-          if (rutas[oldId] && map) map.removeLayer(rutas[oldId]);
-          delete markers[oldId]; delete rutas[oldId];
-        }
-      }
-    }
-
-    function focusRider(id) {
-      if (markers[id] && map) { map.setView(markers[id].getLatLng(), 17, { animate: true }); markers[id].openTooltip(); }
-    }
-
-    function centerMe() {
-      if (!session) return;
-      if (markers[session.usuario] && map) map.setView(markers[session.usuario].getLatLng(), 17, { animate: true });
-      else toast("Esperando senal GPS...", "warning");
-    }
+    function limpiarViejos(ids){for(var oldId in markers){if(!ids[oldId]){if(markers[oldId]&&map)map.removeLayer(markers[oldId]);if(rutas[oldId]&&map)map.removeLayer(rutas[oldId]);delete markers[oldId];delete rutas[oldId];delete markerFotos[oldId];}}}
+    function focusRider(id){if(markers[id]&&map){map.setView(markers[id].getLatLng(),17,{animate:true});markers[id].openTooltip();}}
+    function centerMe(){if(!session)return;if(markers[session.usuario]&&map)map.setView(markers[session.usuario].getLatLng(),17,{animate:true});else toast("Esperando GPS...","warning");}
 
     /* ==========================================================
-       16. RELOJ
+       18. RELOJ
     ========================================================== */
-    function iniciarClock() {
-      function tick() {
-        var now = new Date();
-        var clockEl = document.getElementById("clock");
-        if (clockEl) clockEl.textContent = now.toLocaleTimeString("es-EC", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-        var el = Math.floor((Date.now() - startTime) / 1000);
-        document.getElementById("sTime").textContent = String(Math.floor(el / 3600)).padStart(2, "0") + ":" + String(Math.floor((el % 3600) / 60)).padStart(2, "0");
-      }
-      tick();
-      clockInterval = setInterval(tick, 1000);
-    }
+    function iniciarClock(){function tick(){var now=new Date(),clockEl=document.getElementById("clock");if(clockEl)clockEl.textContent=now.toLocaleTimeString("es-EC",{hour:"2-digit",minute:"2-digit",second:"2-digit"});var el=Math.floor((Date.now()-startTime)/1000);document.getElementById("sTime").textContent=String(Math.floor(el/3600)).padStart(2,"0")+":"+String(Math.floor((el%3600)/60)).padStart(2,"0");}tick();clockInterval=setInterval(tick,1000);}
 
     /* ==========================================================
-       17. ADMIN
+       19. ADMIN
     ========================================================== */
-    function toggleAdmin() {
-      var p = document.getElementById("admPnl"), o = document.getElementById("admOv");
-      if (p.classList.contains("open")) { p.classList.remove("open"); o.classList.remove("open"); }
-      else { refreshAdmList(); p.classList.add("open"); o.classList.add("open"); }
+    function toggleAdmin(){var p=document.getElementById("admPnl"),o=document.getElementById("admOv");if(p.classList.contains("open")){p.classList.remove("open");o.classList.remove("open");}else{refreshAdmList();p.classList.add("open");o.classList.add("open");}}
+
+    function crearUsuario(){
+      var nombre=document.getElementById("nName").value.trim(),usuario=document.getElementById("nUser").value.trim().toLowerCase(),password=document.getElementById("nPass").value.trim();
+      if(!nombre){toast("Ingresa nombre completo","error");return;}if(!usuario||usuario.length<3){toast("Usuario: min 3 caracteres","error");return;}if(!password||password.length<4){toast("Contrasena: min 4 caracteres","error");return;}if(/[^a-z0-9_]/.test(usuario)){toast("Solo minusculas, numeros y _","error");return;}
+      var usuarios=getUsuarios();for(var i=0;i<usuarios.length;i++){if(usuarios[i].usuario===usuario){toast("Usuario ya existe","error");return;}}
+      usuarios.push({nombre:nombre,usuario:usuario,password:password,role:"user",created:Date.now()});setUsuarios(usuarios);
+      document.getElementById("nName").value="";document.getElementById("nUser").value="";document.getElementById("nPass").value="";
+      refreshAdmList();toast('Usuario "'+nombre+'" creado',"success");
     }
 
-    function crearUsuario() {
-      var nombre = document.getElementById("nName").value.trim();
-      var usuario = document.getElementById("nUser").value.trim().toLowerCase();
-      var password = document.getElementById("nPass").value.trim();
-      if (!nombre) { toast("Ingresa el nombre completo", "error"); return; }
-      if (!usuario || usuario.length < 3) { toast("Usuario: minimo 3 caracteres", "error"); return; }
-      if (!password || password.length < 4) { toast("Contrasena: minimo 4 caracteres", "error"); return; }
-      if (/[^a-z0-9_]/.test(usuario)) { toast("Solo letras minusculas, numeros y guion bajo", "error"); return; }
-      var usuarios = getUsuarios();
-      for (var i = 0; i < usuarios.length; i++) { if (usuarios[i].usuario === usuario) { toast("Este usuario ya existe", "error"); return; } }
-      usuarios.push({ nombre: nombre, usuario: usuario, password: password, role: "user", created: Date.now() });
-      setUsuarios(usuarios);
-      document.getElementById("nName").value = ""; document.getElementById("nUser").value = ""; document.getElementById("nPass").value = "";
-      refreshAdmList();
-      toast('Usuario "' + nombre + '" creado', "success");
+    function delUser(u){
+      if(!session||u===session.usuario){toast("No puedes eliminarte","error");return;}
+      var usuarios=getUsuarios(),target=null,idx=-1;for(var i=0;i<usuarios.length;i++){if(usuarios[i].usuario===u){target=usuarios[i];idx=i;break;}}
+      if(!target)return;if(target.role==="admin"){toast("No se puede eliminar admin","error");return;}
+      if(db)db.collection("riders").doc(u).delete().catch(function(){});
+      if(storage)storage.ref("riders/"+u).delete().catch(function(){});
+      usuarios.splice(idx,1);setUsuarios(usuarios);
+      if(markers[u]&&map){map.removeLayer(markers[u]);delete markers[u];}
+      if(rutas[u]&&map){map.removeLayer(rutas[u]);delete rutas[u];}
+      delete markerFotos[u];refreshAdmList();toast('Usuario "'+target.nombre+'" eliminado',"warning");
     }
 
-    function delUser(u) {
-      if (!session || u === session.usuario) { toast("No puedes eliminarte a ti mismo", "error"); return; }
-      var usuarios = getUsuarios();
-      var target = null, idx = -1;
-      for (var i = 0; i < usuarios.length; i++) { if (usuarios[i].usuario === u) { target = usuarios[i]; idx = i; break; } }
-      if (!target) return;
-      if (target.role === "admin") { toast("No se puede eliminar un admin", "error"); return; }
-      if (db) db.collection("riders").doc(u).delete().catch(function () { });
-      usuarios.splice(idx, 1);
-      setUsuarios(usuarios);
-      if (markers[u] && map) { map.removeLayer(markers[u]); delete markers[u]; }
-      if (rutas[u] && map) { map.removeLayer(rutas[u]); delete rutas[u]; }
-      refreshAdmList();
-      toast('Usuario "' + target.nombre + '" eliminado', "warning");
-    }
-
-    function refreshAdmList() {
-      var usuarios = getUsuarios();
-      var box = document.getElementById("admList");
-      if (!box) return;
-      var html = "";
-      if (usuarios.length === 0) {
-        html = '<div class="empty-st"><i class="fas fa-users"></i><p>No hay usuarios</p></div>';
-      } else {
-        for (var i = 0; i < usuarios.length; i++) {
-          var u = usuarios[i];
-          var isAdmin = u.role === "admin";
-          var isMe = session && u.usuario === session.usuario;
-          var badge = isAdmin
-            ? '<span style="font-size:9px;padding:2px 7px;background:var(--accent-dim);color:var(--accent);border-radius:4px;font-weight:600">ADMIN</span>'
-            : '<span style="font-size:9px;padding:2px 7px;background:rgba(0,229,255,.12);color:var(--info);border-radius:4px;font-weight:600">RIDER</span>';
-          var bg = isAdmin ? "var(--accent)" : "var(--info)";
-          var canDel = !isAdmin && !isMe;
-          var meLabel = isMe ? ' <span style="font-size:9px;color:var(--muted)">(tu)</span>' : "";
-          var delBtn = canDel ? '<button class="del-btn" data-deluser="' + u.usuario + '" title="Eliminar"><i class="fas fa-trash-alt"></i></button>' : "";
-          html += '<div class="adm-u"><div style="display:flex;align-items:center;gap:9px;min-width:0"><div style="width:30px;height:30px;background:' + bg + ';border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#0a0e17;flex-shrink:0">' + u.nombre.charAt(0) + '</div><div style="min-width:0"><div style="font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + u.nombre + meLabel + '</div><div style="font-size:10px;color:var(--muted);font-family:JetBrains Mono,monospace">@' + u.usuario + " " + badge + '</div></div></div>' + delBtn + "</div>";
-        }
-      }
-      box.innerHTML = html;
-      var btns = box.querySelectorAll("[data-deluser]");
-      for (var b = 0; b < btns.length; b++) {
-        (function (btn) {
-          btn.addEventListener("click", function (e) { e.stopPropagation(); delUser(btn.getAttribute("data-deluser")); });
-        })(btns[b]);
-      }
+    function refreshAdmList(){
+      var usuarios=getUsuarios(),box=document.getElementById("admList");if(!box)return;var html="";
+      if(usuarios.length===0){html='<div class="empty-st"><i class="fas fa-users"></i><p>No hay usuarios</p></div>';}
+      else{for(var i=0;i<usuarios.length;i++){
+        var u=usuarios[i],isAdmin=u.role==="admin",isMe=session&&u.usuario===session.usuario;
+        var badge=isAdmin?'<span style="font-size:9px;padding:2px 7px;background:var(--accent-dim);color:var(--accent);border-radius:4px;font-weight:600">ADMIN</span>':'<span style="font-size:9px;padding:2px 7px;background:rgba(0,229,255,.12);color:var(--info);border-radius:4px;font-weight:600">RIDER</span>';
+        var bg=isAdmin?"var(--accent)":"var(--info)";
+        var canDel=!isAdmin&&!isMe;
+        var meLabel=isMe?' <span style="font-size:9px;color:var(--muted)">(tu)</span>':"";
+        var delBtn=canDel?'<button class="del-btn" data-deluser="'+u.usuario+'" title="Eliminar"><i class="fas fa-trash-alt"></i></button>':"";
+        /* Boton de foto para cualquier usuario */
+        var fotoBtn='<button class="foto-btn" data-fotouser="'+u.usuario+'" title="Subir foto"><i class="fas fa-camera"></i></button>';
+        html+='<div class="adm-u"><div style="display:flex;align-items:center;gap:9px;min-width:0"><div style="width:30px;height:30px;background:'+bg+';border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#0a0e17;flex-shrink:0">'+u.nombre.charAt(0)+'</div><div style="min-width:0"><div style="font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+u.nombre+meLabel+'</div><div style="font-size:10px;color:var(--muted);font-family:JetBrains Mono,monospace">@'+u.usuario+" "+badge+'</div></div></div><div style="display:flex;gap:4px">'+fotoBtn+delBtn+"</div></div>";
+      }}
+      box.innerHTML=html;
+      var btns=box.querySelectorAll("[data-deluser]");for(var b=0;b<btns.length;b++){(function(btn){btn.addEventListener("click",function(e){e.stopPropagation();delUser(btn.getAttribute("data-deluser"));});})(btns[b]);}
+      var fbtns=box.querySelectorAll("[data-fotouser]");for(var f=0;f<fbtns.length;f++){(function(btn){btn.addEventListener("click",function(e){e.stopPropagation();abrirFotoInput(btn.getAttribute("data-fotouser"));});})(fbtns[f]);}
     }
   </script>
 </body>
